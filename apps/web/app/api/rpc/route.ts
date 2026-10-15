@@ -35,8 +35,13 @@ export async function POST(req: Request) {
   } catch {
     return refuse(400, "bad json");
   }
-  const calls = Array.isArray(body) ? body : [body];
-  if (!calls.length || calls.length > 10 || calls.some((c) => !c?.method || !READS.has(c.method))) {
+  const calls = (Array.isArray(body) ? body : [body]).map((c) => ({
+    jsonrpc: "2.0",
+    id: (c as { id?: unknown })?.id ?? null,
+    method: c?.method,
+    params: (c as { params?: unknown })?.params ?? [],
+  }));
+  if (!calls.length || calls.length > 10 || calls.some((c) => typeof c.method !== "string" || !READS.has(c.method))) {
     return refuse(400, "read-only relay");
   }
   const headers: Record<string, string> = { "content-type": "application/json" };
@@ -44,7 +49,9 @@ export async function POST(req: Request) {
   const upstream = await fetch(process.env.ARKIV_RPC_URL ?? "https://rpc.tiramisu.db-chain.testnet.arkiv.network", {
     method: "POST",
     headers,
-    body: raw,
+    // Forward exactly what was checked: re-serialised from the parsed object, so a duplicate key or any
+    // other parser difference between us and the upstream cannot smuggle a different method through.
+    body: JSON.stringify(Array.isArray(body) ? calls : calls[0]),
     cache: "no-store",
   });
   return new NextResponse(await upstream.text(), { status: upstream.status, headers: { "content-type": "application/json" } });

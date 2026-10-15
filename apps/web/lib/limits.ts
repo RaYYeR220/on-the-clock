@@ -1,15 +1,15 @@
 // Small in-memory limits for the two server routes. They are per instance, which is fine for a
 // testnet demo: they bound abuse, they do not pretend to be a billing system.
 
-/** The caller's IP as set by the platform. Client-supplied forwarding headers are not trusted. */
+/**
+ * The caller's IP as set by the platform. On Vercel, `x-vercel-forwarded-for` is written by the edge
+ * and cannot be set by the client. Anywhere else no forwarding header is trustworthy, so every caller
+ * shares one bucket: stricter, never bypassable.
+ */
 export function clientIp(req: Request): string {
-  const h = req.headers;
-  // Set by Vercel's edge, not by the client.
-  const vercel = h.get("x-vercel-forwarded-for") ?? h.get("x-real-ip");
-  if (vercel) return vercel.split(",")[0]!.trim();
-  // Elsewhere, only the right-most hop was appended by our own proxy.
-  const xff = h.get("x-forwarded-for");
-  return xff ? xff.split(",").at(-1)!.trim() : "unknown";
+  if (!process.env.VERCEL) return "shared";
+  const v = req.headers.get("x-vercel-forwarded-for");
+  return v ? v.split(",")[0]!.trim() : "shared";
 }
 
 export class Window {
@@ -28,8 +28,13 @@ export class Window {
       return false;
     }
     recent.push(now);
+    this.hits.delete(key);
     this.hits.set(key, recent);
-    if (this.hits.size > 10_000) this.hits.clear();
+    // Bound memory by evicting the least recently used keys, never by resetting everyone's budget.
+    while (this.hits.size > 10_000) {
+      const oldest = this.hits.keys().next().value as string;
+      this.hits.delete(oldest);
+    }
     return true;
   }
 }

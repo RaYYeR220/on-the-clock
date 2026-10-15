@@ -23,117 +23,192 @@ query is in `packages/sdk/src/read.ts`, and every verdict is in `packages/sdk/sr
 
 ## Entity types
 
-### Entity type: `inbox`
+Every type also carries `app` (string, always `onclock`) and `kind` (string, the type name); they are
+omitted from the tables below.
 
-A vendor's disclosure inbox, the equivalent of `security.txt`.
+### `inbox`
 
-- **Written by:** the vendor's wallet (`$creator` is the vendor's identity).
-- **Attributes:** `app` str · `kind` str = `inbox` · `name` str (display name) · `sla` u64 (days to acknowledge) · `embargo` u64 (default embargo, days).
-- **Payload (JSON, not queried):** the vendor's ERC-5564 stealth meta-address and its disclosure policy text.
-- **Entity Expiration:** a **30-day lease**, extended by the vendor's activity (Lifetime Extension). Filing a case against the inbox extends it to the case deadline + 30 days.
-- **Flags:** `readonly` (keys cannot be swapped under an open case; rotation means a new inbox) and `permissionlessExtension` (anyone with an open case can keep it alive, so a vendor cannot dodge attribution by letting it lapse).
+A vendor's disclosure inbox, the equivalent of `security.txt`. Written by the vendor's wallet, whose
+address (`$creator`) is the vendor's identity.
+
+| Attribute | Type | Purpose |
+|---|---|---|
+| `name` | string | display name |
+| `sla` | number (u64) | days the vendor promises to acknowledge within |
+| `embargo` | number (u64) | the vendor's default embargo, in days |
+
+Entity Expiration: 30 days, a lease. Lifetime Extension renews it on the vendor's activity, and filing a case extends it to the deadline + 30 days.
+
+- **Payload (JSON, not queried):** the vendor's ERC-5564 stealth meta-address and its policy text.
+- **Flags:** `readonly`, so keys cannot be swapped under an open case (rotation means a new inbox). `permissionlessExtension`, so anyone with an open case can keep it alive and a vendor cannot dodge attribution by letting it lapse.
 - **Owner:** the vendor.
 
-### Entity type: `case`
+### `case`
 
-The sealed case file.
+The sealed case file. Written by the researcher.
 
-- **Written by:** the researcher.
-- **Attributes:** `app` str · `kind` str = `case` · `sev` u64 (severity band 1–4, so the board can range-filter).
-- **Payload (JSON, not queried):** only ciphertext, commitments and public keys:
-  - the ERC-5564 ephemeral key and view tag, which let the vendor find the case;
-  - a second ephemeral key used only for the report;
-  - the one-time responder address the vendor answers from;
-  - the vendor commitment `keccak(inbox key ‖ salt)`;
-  - the full report sealed for the vendor (XChaCha20-Poly1305 under `HKDF(r₂·P_view)`), never auto-released;
-  - the researcher's own copy (ECIES);
-  - the advisory and reveal bundle sealed under a random key K;
-  - SHA-256 commitments to the report and the proof of concept;
-  - the watcher set, the threshold k, the clock key and the deadline as filed.
-- **Entity Expiration:** **1 year**: a case must outlive its deadline, because it is the history a vendor is judged on.
-- **Flags:** `readonly` and `permissionlessExtension` (anyone can keep a published case alive).
+| Attribute | Type | Purpose |
+|---|---|---|
+| `sev` | number (u64) | severity band 1–4, range-filterable on the board |
+
+Entity Expiration: 365 days. A case must outlive its deadline: it is the history a vendor is judged on.
+
+- **Payload (JSON, not queried):** only ciphertext, commitments and public keys.
+  - The ERC-5564 ephemeral key and view tag (how the vendor finds the case).
+  - A second ephemeral key used only for the report.
+  - The one-time responder address.
+  - The vendor commitment `keccak(inbox key ‖ salt)`.
+  - The full report sealed for the vendor (XChaCha20-Poly1305 under `HKDF(r₂·P_view)`, never auto-released).
+  - The researcher's own copy (ECIES).
+  - The advisory and reveal bundle sealed under a random key K.
+  - SHA-256 commitments to the report and the proof of concept.
+  - The watcher set, the threshold k, the clock key and the deadline as filed.
+- **Flags:** `readonly`, `permissionlessExtension`.
 - **Owner:** transferred to `0x000000000000000000000000000000000000dEaD` in the filing batch, so nobody can edit or delete it.
 
-### Entity type: `clock`
+### `clock`
 
-The embargo itself.
+The embargo itself. Written by the researcher.
 
-- **Written by:** the researcher.
-- **Attributes:** `app` str · `kind` str = `clock` · `case` key.
+| Attribute | Type | Purpose |
+|---|---|---|
+| `case` | entity key | the case this clock times |
+
+Entity Expiration: the embargo deadline, chosen per case (90 days by default). This is the product. The deadline is not a field anyone checks; it is the lifetime of an Arkiv entity only its custodian can extend. Lifetime Extension is how a granted extension happens. A vendor's `extendEntity` on the clock reverts with `NotOwner`.
+
 - **Payload:** `{ "v": 1 }`.
-- **Entity Expiration:** **exactly the embargo deadline.** This is the product. The deadline is not a field anyone checks; it is the lifetime of an entity only its custodian can extend. A vendor's `extendEntity` on it reverts with `NotOwner`.
-- **Flags:** `readonly`. Deliberately **not** `permissionlessExtension`.
+- **Flags:** `readonly`, and deliberately **not** `permissionlessExtension`.
 - **Owner:** the custodian. That is the researcher, or the coordinator the clock is handed to with `changeOwnership`.
 
-### Entity type: `trigger`
+### `trigger`
 
-One watcher's escrowed share of the advisory key K.
+One watcher's escrowed share of the advisory key K. Written by the researcher in the filing batch.
 
-- **Written by:** the researcher, in the filing batch.
-- **Attributes:** `app` str · `kind` str = `trigger` · `case` key · `target` key (the clock) · `watcher` addr · `action` str (`release`).
+| Attribute | Type | Purpose |
+|---|---|---|
+| `case` | entity key | the case |
+| `target` | entity key | the clock to watch |
+| `watcher` | address | the watcher holding this share |
+| `action` | string | `release` |
+
+Entity Expiration: the deadline + 7 days of grace, set per case. Lifetime Extension moves it in the same batch as the clock, so the escrow always outlives the deadline.
+
 - **Payload (JSON, not queried):** the share, ECIES-encrypted to that watcher and bound to the case, the clock and the watcher.
-- **Entity Expiration:** the deadline + a **7-day grace**, extended in the same batch as the clock, so the escrow always outlives the deadline.
-- **Flags:** `readonly` and `permissionlessExtension` (a coordinator holding the clock can keep the escrow alive).
+- **Flags:** `readonly`, and `permissionlessExtension` so a coordinator holding the clock can keep the escrow alive.
 - **Owner:** transferred to `0x…dEaD` in the filing batch.
 
-### Entity type: `ack`, `extreq`, `fixed`
+### `ack`
 
-The vendor's acts on a case.
+The vendor acknowledged the report. Written by the case's one-time responder address, a stealth address only the vendor controls.
 
-- **Written by:** the case's one-time **responder** address (a stealth address only the vendor controls).
-- **Attributes:** `app` str · `kind` str · `case` key · and on `extreq` only, `seconds` u64 (the time asked for).
+| Attribute | Type | Purpose |
+|---|---|---|
+| `case` | entity key | the case |
+
+Entity Expiration: 365 days.
+
 - **Payload (JSON, not queried):** an optional note, ECIES-encrypted to the researcher.
-- **Entity Expiration:** **1 year**.
 - **Flags:** `readonly`.
 
-### Entity type: `grant`
+### `extreq`
 
-An extension, granted by the clock's custodian.
+The vendor asked for more time. Written by the responder.
 
-- **Written by:** the clock's custodian.
-- **Attributes:** `app` str · `kind` str = `grant` · `case` key · `seconds` u64.
-- **Payload (JSON, not queried):** the clock's new expiry block, and the request it answers.
-- **Entity Expiration:** **1 year**.
+| Attribute | Type | Purpose |
+|---|---|---|
+| `case` | entity key | the case |
+| `seconds` | number (u64) | time asked for |
+
+Entity Expiration: 365 days.
+
+- **Payload (JSON, not queried):** an optional note, ECIES-encrypted to the researcher.
 - **Flags:** `readonly`.
 
-### Entity type: `handoff`
+### `fixed`
 
-The queryable record of a custody transfer. Arkiv exposes the current `$owner`, not ownership history.
+The vendor says it has shipped a fix. Written by the responder.
 
-- **Written by:** the clock's custodian, in the same batch as `changeOwnership`.
-- **Attributes:** `app` str · `kind` str = `handoff` · `case` key · `to` addr.
+| Attribute | Type | Purpose |
+|---|---|---|
+| `case` | entity key | the case |
+
+Entity Expiration: 365 days.
+
+- **Payload (JSON, not queried):** an optional note, ECIES-encrypted to the researcher.
+- **Flags:** `readonly`.
+
+### `grant`
+
+An extension, granted by the clock's custodian in the same batch as the Lifetime Extension it records.
+
+| Attribute | Type | Purpose |
+|---|---|---|
+| `case` | entity key | the case |
+| `seconds` | number (u64) | time granted |
+
+Entity Expiration: 365 days.
+
+- **Payload (JSON, not queried):** the clock's new expiry block and the request it answers.
+- **Flags:** `readonly`.
+
+### `handoff`
+
+The queryable record of a custody transfer, because Arkiv exposes the current `$owner` but not its history. Written by the custodian in the same batch as `changeOwnership`.
+
+| Attribute | Type | Purpose |
+|---|---|---|
+| `case` | entity key | the case |
+| `to` | address | the new custodian |
+
+Entity Expiration: 365 days.
+
 - **Payload (JSON, not queried):** the reason.
-- **Entity Expiration:** **1 year**.
 - **Flags:** `readonly`.
 
-### Entity type: `watcher`
+### `watcher`
 
-A watcher's liveness lease.
+A watcher's liveness lease. Written by the watcher's wallet.
 
-- **Written by:** the watcher's wallet.
-- **Attributes:** `app` str · `kind` str = `watcher` · `op` str (operator) · `region` str.
+| Attribute | Type | Purpose |
+|---|---|---|
+| `op` | string | operator label |
+| `region` | string | where it runs |
+
+Entity Expiration: 10 minutes, a lease. Lifetime Extension renews it every 3 minutes while the process runs, so "which watchers are alive" is a plain query: present means alive.
+
 - **Payload (JSON, not queried):** the watcher's encryption public key and version.
-- **Entity Expiration:** a **10-minute lease**, renewed every 3 minutes while the process runs (Lifetime Extension as a lease renewed by activity). "Which watchers are alive" is a plain query: present means alive.
 
-### Entity type: `receipt`
+### `receipt`
 
-A watcher's signed observation.
+A watcher's signed observation. Written by a watcher.
 
-- **Written by:** a watcher.
-- **Attributes:** `app` str · `kind` str = `receipt` · `case` key · `target` key · `outcome` str (`lapsed`, `withdrawn` or `disclosed`) · `at` u64 (the head block it observed).
-- **Payload (JSON, not queried):** the released share (for `lapsed` only), plus what the watcher observed (deadline, last block the clock was alive).
-- **Entity Expiration:** **1 year**.
-- **Flags:** `readonly` and `permissionlessExtension`.
+| Attribute | Type | Purpose |
+|---|---|---|
+| `case` | entity key | the case |
+| `target` | entity key | the clock |
+| `outcome` | string | `lapsed`, `withdrawn` or `disclosed` |
+| `at` | number (u64) | head block the watcher observed |
 
-### Entity type: `reveal`
+Entity Expiration: 365 days.
 
-The published advisory key K.
+- **Payload (JSON, not queried):** the released share (for `lapsed` only), plus what the watcher observed: the deadline and the last block the clock was alive.
+- **Flags:** `readonly`, `permissionlessExtension`.
 
-- **Written by:** the watcher whose receipt completes the threshold, or the researcher for an early disclosure. Its author does not matter: a reveal is trusted by recomputation.
-- **Attributes:** `app` str · `kind` str = `reveal` · `case` key · `vendor` addr · `inbox` key · `by` str (`watchers` or `researcher`).
+### `reveal`
+
+The published advisory key K. Written by the watcher whose receipt completes the threshold, or by the researcher for an early disclosure. Its author does not matter: a reveal is trusted by recomputation.
+
+| Attribute | Type | Purpose |
+|---|---|---|
+| `case` | entity key | the case |
+| `vendor` | address | the vendor it names (an index; re-verified before use) |
+| `inbox` | entity key | the vendor's inbox |
+| `by` | string | `watchers` or `researcher` |
+
+Entity Expiration: 365 days.
+
 - **Payload (JSON, not queried):** K.
-- **Entity Expiration:** **1 year**.
-- **Flags:** `readonly` and `permissionlessExtension`: an advisory should outlive anyone's interest in burying it.
+- **Flags:** `readonly`, and `permissionlessExtension`: an advisory should outlive anyone's interest in burying it.
 
 ---
 
