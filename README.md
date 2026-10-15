@@ -164,6 +164,50 @@ cd scripts && node --env-file=../.env fund.ts && node --env-file=../.env e2e.ts 
   never the vendor.
 - **Deadlines are measured in 2-second blocks.**
 
+## What we got wrong, and fixed
+
+Each of these was a real hole in an earlier version. The first nine came from reviewing our own code
+with an attacker's goals. The last three came from running it on Tiramisu.
+
+**Found in review**
+1. **A copied trigger could release a share early.** Anyone could copy a watcher's encrypted share into
+   a new trigger aimed at a decoy clock that lapses sooner.
+   - The share's AEAD now binds case, clock and watcher.
+   - A watcher accepts a trigger only if the case file names that clock and that watcher's key.
+   - Nothing is released before the deadline written into the sealed case file.
+2. **One lying watcher could hold back disclosure.** It could vote "withdrawn" or post a bogus reveal.
+   Now any k shares win, and a reveal counts only if its key decrypts the case and matches the
+   commitment filed with it.
+3. **A forged clock could stand in for the real one.** A clock now counts only if the case file names
+   its key and the case's researcher created it.
+4. **A researcher could name any vendor at reveal.** Attribution is now checked against the inbox the
+   case was delivered to: its creator and its stealth meta-address.
+5. **A researcher could frame a vendor through the delivery tweak.** The reveal now publishes the
+   addressing key, so anyone can recompute the delivery. The report is sealed under a second key that
+   is never opened.
+6. **Receipts were judged against records, not the chain.** The deadline is now taken from the clock's
+   own `EntityCreated`/`ExpiryExtended` logs once the clock is gone.
+7. **Entity text could inject terminal escapes into the CLI.** Control characters are now stripped.
+8. **The relay and the demo faucet could be abused.**
+   - The relay accepts only read methods and forwards re-serialised calls, never the raw body.
+   - Faucet limits fail closed and trust only the platform's client IP.
+   - A wallet cannot be topped up twice in parallel.
+9. **Anyone could join the default watcher set.** Filings now default to a named set; other
+   advertised watchers are listed as unvetted.
+
+**Found on the live runs** (records in [`proof/`](proof))
+10. **Three receipts in one block, and no reveal.** Each watcher checked the share count before the
+    others' receipts were indexed, so none of them saw k shares, and the case stayed "revealable".
+    It happened in three of our four runs.
+    - A watcher whose receipt went out without the reveal now checks again two blocks later
+      (staggered per watcher), then every 30 seconds for a day.
+    - It resumes that duty after a restart.
+    - On the run against the deployed watchers, the reveal landed four blocks after the receipts.
+11. **A copied trigger was skipped silently.** It never released anything, but it was not refused on
+    the record either. Now every trigger is checked, and each refusal is logged.
+12. **A restarted watcher kept the labels of a lease from an earlier process.** It now takes out a
+    fresh lease when the live one describes a different operator, region or version.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
