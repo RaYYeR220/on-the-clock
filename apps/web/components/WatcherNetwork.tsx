@@ -21,6 +21,8 @@ const big = (v: string) => {
   }
 };
 const hostOf = (u: string) => {
+  // A relative URL is this site's relay (/api/watchers/<n>).
+  if (u.startsWith("/")) return `watcher ${u.split("/").filter(Boolean).pop()}`;
   try {
     return new URL(statusUrl(u)).host;
   } catch {

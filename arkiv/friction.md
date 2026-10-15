@@ -200,6 +200,29 @@ strip.
 **What we did:** we created a second, plain viem client just for block heads.
 **Fix:** extend `publicActions` fully, or document which viem actions are kept.
 
+### F-18 · A refused write reaches the chain only if you set `gas` yourself
+
+**Surface:** SDK wallet actions (live on Tiramisu, 15 October).
+**Why it mattered to us:** our strongest evidence is a refusal. "The vendor cannot move the deadline"
+only convinces a judge if a failed transaction from the vendor sits on the explorer.
+
+**Steps:** from a wallet that does not own entity X:
+1. `extendEntity({ entityKey: X, expires: ExpirationTime.atBlock(head + 1000n) })`;
+2. the same call with a second argument, `{ gas: 300_000n }`.
+
+**Actual:**
+- **Call 1:** `EntityMutationError: Transaction failed: entity 0xf2b2…fd11 is owned by 0xBDEd…98D1,
+  not 0x58F5…AE12`. `txHash` is unset, and the sender's nonce stays at 0. The revert happened in
+  `eth_estimateGas` (the innermost cause is `EstimateGasExecutionError`), so nothing was broadcast.
+- **Call 2:** the transaction is mined as failed, and the error reads `Transaction 0x… reverted.
+  Reason: entity … is owned by …` with `txHash` set. Our end-to-end run records four of these (see
+  [`PROOF.md`](../PROOF.md)).
+
+The reason is decoded well in both paths. What is missing is one sentence: `TxParams` says "anything
+left out is estimated", but not that a call which would revert fails at estimation and is never sent.
+
+**Fix:** add that sentence to the wallet-actions docs, with `gas` as the way to put a revert on record.
+
 ### F-16 · Unused 3.2 MB runtime dependency
 
 `dependencies: { "brotli-wasm": "^3.0.1" }`. `src/utils/compression.ts` is imported nowhere, and no
@@ -379,6 +402,19 @@ Each of these was tested, and the result matched what we expected.
 
 **Events**
 - **WebSocket events without `fromBlock`:** a real subscription at p50 39 ms. Our watchers and the web app's countdowns depend on it.
+
+**Live on Tiramisu (end-to-end runs on 15 October; hashes in [`PROOF.md`](../PROOF.md))**
+- **Events:** when the researcher granted more time, all three watchers logged the clock's
+  `ExpiryExtended` in the same second the batch landed, and rescheduled.
+- **Lapse to receipt in two blocks:** a clock whose expiry was block 615663 drew receipts in blocks
+  615665, 615665 and 615668.
+- **The lapse proof held on every run:**
+  - `getEntity` threw after expiry;
+  - `atBlock(expiresAt - 1)` still returned the clock;
+  - `eth_getLogs` for `EntityDeleted` came back empty.
+- **Restart from chain state alone:** a watcher process started fresh found its jobs, its earlier
+  receipts and an unfinished reveal by querying Arkiv, and completed the reveal. Nothing is kept on disk.
+- **Mined reverts carry their reason:** see F-18.
 
 **Tooling**
 - The Data Explorer serves Tiramisu with deep links (`/owner/0x…`, query strings) that we link from every case page.

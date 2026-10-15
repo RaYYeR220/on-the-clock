@@ -25,7 +25,11 @@ const JSON_TYPE = "application/json";
 
 export type JobState = "armed" | "due" | "deleted" | "revealing" | "done" | "failed";
 
-/** How often a watcher whose receipt went out without the reveal checks the threshold again (30 s). */
+/**
+ * A watcher whose receipt went out without the reveal checks the threshold again soon (k receipts in
+ * one block is the usual case, not the exception), then every 30 s.
+ */
+const REVEAL_FIRST_RETRY_BLOCKS = 2n;
 const REVEAL_RETRY_BLOCKS = 15n;
 /** How long it keeps checking before giving up on writing the reveal itself. */
 const REVEAL_PATIENCE_SECONDS = 86_400;
@@ -332,7 +336,7 @@ export class Watcher {
     }
     const res = await wallet.executeBatch({ creates });
     job.state = waiting ? "revealing" : "done";
-    if (waiting) job.retryAt = head + this.retryOffset();
+    if (waiting) job.retryAt = head + REVEAL_FIRST_RETRY_BLOCKS + this.stagger();
     job.outcome = outcome;
     job.receiptTx = res.txHash;
     if ((creates?.length ?? 0) > 1) job.revealTx = res.txHash;
@@ -370,7 +374,7 @@ export class Watcher {
       job.state = "done";
       return;
     }
-    job.retryAt = head + this.retryOffset();
+    job.retryAt = head + REVEAL_RETRY_BLOCKS + this.stagger();
     const t = await this.revealIfThreshold(job, head);
     if (t.create) {
       const res = await this.o.wallet.executeBatch({ creates: [t.create] });
@@ -383,8 +387,8 @@ export class Watcher {
   }
 
   /** Watchers that missed the threshold together retry a few blocks apart, so one reveal is usually enough. */
-  private retryOffset() {
-    return REVEAL_RETRY_BLOCKS + (BigInt(`0x${this.address.slice(-2)}`) % 8n);
+  private stagger() {
+    return (BigInt(`0x${this.address.slice(-2)}`) % 8n) * 2n;
   }
 
   status() {
