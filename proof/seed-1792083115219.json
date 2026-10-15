@@ -1,0 +1,69 @@
+{
+  "seededAt": "2026-10-15T16:51:55.219Z",
+  "vendors": [
+    {
+      "who": "SEED_VENDOR_4",
+      "inbox": "0xebcb38e269c14d6b0f2c06bd13f7c0bc01f14004a21503eade0109a0e3b47dcc",
+      "vendor": "0x5bb8A96c4be65d3DcA07706dbf84375Ecb9ED7E6"
+    },
+    {
+      "who": "SEED_VENDOR_2",
+      "inbox": "0x71398bbb554c04444a250f6ddced729f06da9fa6111d5ffc6d86d8c34a57ebca",
+      "vendor": "0x4306D599747569F3e4beb0CB0ED9207fd6D257aC"
+    },
+    {
+      "who": "SEED_VENDOR_3",
+      "inbox": "0x5cefa10d12a5568f810aed0ddfd0db3db5d770c506b7a729529971edc05342a4",
+      "vendor": "0x58F59eBC0894c70958149FFC79F22Ce7Ca21AE12"
+    }
+  ],
+  "cases": [
+    {
+      "id": "oracle-stale",
+      "case": "0xc30ea43db9a7dc42220c0114cf68f709de21881b72ecd6c531ab8cc0b86b3645",
+      "clock": "0xe2237447faf22988f1cd0f6879d86fa64e9e97f6b2ee81a5aa921a327f43a8ba",
+      "filingTx": "0x67b9d2f0e3bffce906fc1196fa46fa80b491819d907af2a4b1a93f557244da7b",
+      "ack": "0x7fb4fbcdeabe269af263728c0d55cc555f4de794e4fc6c1bc0146d8d684dab11",
+      "request": "0x6b28ce05e3505500de91c7110d531fab64d8582a927c25b307c1dab8534da482",
+      "grant": "0xb5ecec7f29ccb899cd96f85bef8b9497c2cff43eaf1676c50127362c9d902cc6"
+    },
+    {
+      "id": "liq-rounding",
+      "case": "0x2afb6c0fd95231bb22ec04f894f400e13ed7b3bc62ff402252ed782cfb95f594",
+      "clock": "0x7d92976707f2936cc11592c9bc2ba354d5783df8448f004c9eaf17f00b3eb34a",
+      "filingTx": "0x4417a0f6a63258394280b30632c6cd74c84623f08c0d6919eda4a75bd7e806a5",
+      "ack": "0x9cc29488ff70bd1c643ac38bfcd22c5595decc224937525e4080b3bc14e5775e",
+      "fixed": "0x9396e0f3d7f3b7f7b223ef3aecfd5234cfe07999bcc5f2781e8ed9880196ed36"
+    },
+    {
+      "id": "sealed-critical",
+      "case": "0x9e8ea6ba4452529c7fc192aec8fb5db498fb489af975fa22b5d61d56eca91e70",
+      "clock": "0x0f13e85d4b95bc29ae9dca31c167974973a99f390b7ae0c33c070097c479499f",
+      "filingTx": "0xe114bee50f2be03c76ee6b8ec05820c7a0f4ba2bdc9513019fc2e9c83fd4f3f6"
+    },
+    {
+      "id": "coordinated",
+      "case": "0x9021f59449ca086ab5d4203dfcc27a676e1a86e0814295c4d42d32144ecdaad5",
+      "clock": "0xe0a8a2047d7224658daa7e58f455e0b7d38b8b9e15107c274d720a80627f40b9",
+      "filingTx": "0xe386ddeb0c8ff51373c7969793ac40740bebf3f23e39268c1210d797c003edf3",
+      "ack": "0xe269e3541fcb77db312e19cedf1b3c0c4864354bc6e39a767b19fad2c2357cc8",
+      "handoff": "0x471b45126ccaea1e79e6983f2708e12dca4bc8aa87f321a063bf53140f0dd61a"
+    },
+    {
+      "id": "withdrawn",
+      "case": "0x46d8c5e0bb0830801e2e1ce60a911b2e7629d3171a8d947ce927413c05bdc6af",
+      "clock": "0xcc4376748d0832ab4b053a6f016d39bbc096a08b98c7d300af22a40bd38faf9f",
+      "filingTx": "0x574d7171ff585c593071b91144ed896a7e7d25f9334ccae18d72697fd787bd4e",
+      "withdraw": "0x8e0624ca05da26fcf9d00ae3a12f7195a11d3479c67d33e3e40077ad9a3ed245"
+    },
+    {
+      "id": "early",
+      "case": "0x953c1e1c2543630750ca8c1da19e9908ef8dacf4ca2d0e1224145d3b44dfc5bb",
+      "clock": "0xa764c4f37929f39b0edeb6fd11df1bff78d25b07760333e9a41f041a0a6bdcdb",
+      "filingTx": "0x80aeeda17e617698383a6eddc2d10ce6f2a3026f4b7f5bf9fead796fa30ab9d9",
+      "ack": "0x57e41eadb8243e134a0ab22f31ed93374871ea8ba5eac5ce013521b447a44e7c",
+      "fixed": "0xa10b0739ea8ed4ae2bec069f33b3b58ed23c7f5b1a6fad8e99ff2dc9e31be832",
+      "disclose": "0xe33239d5d7a831deb957a4db43eef18a5dbab60bc8e47784a48a7198a2d49c3d"
+    }
+  ]
+}
