@@ -84,6 +84,9 @@ npx on-the-clock verify <caseKey>      # rebuild one case from Arkiv and check e
 npx on-the-clock queries <caseKey>     # print the exact Arkiv queries
 ```
 
+No key is needed. If the public RPC's anonymous query budget for your network is spent, set
+`ARKIV_ACCESS_KEY` to an access key from hub.arkiv.network and run the same command.
+
 Every verdict on the site is rebuilt in your browser from Arkiv, by the same pure function the CLI
 uses (`packages/sdk/src/state.ts`). Trust comes from who wrote an entity (`$creator`) and from
 recomputation. It never comes from a field someone filled in.

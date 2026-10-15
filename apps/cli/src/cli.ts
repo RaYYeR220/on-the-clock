@@ -219,7 +219,22 @@ async function main() {
   }
 }
 
+/** One readable line for an error, looking through wrapped causes for the RPC's own answer. */
+export function explain(e: unknown): string {
+  const chain: { status?: number; details?: string; shortMessage?: string; message?: string; cause?: unknown }[] = [];
+  for (let c = e as (typeof chain)[number] | undefined; c && chain.length < 8; c = c.cause as typeof c) chain.push(c);
+  if (chain.some((c) => c.status === 429 || /ANON_COST_LIMITED/.test(String(c.details ?? "")))) {
+    return [
+      "The public Tiramisu RPC refused the query: the anonymous query budget for your network is spent for now.",
+      "Retry in a few minutes, or set ARKIV_ACCESS_KEY to an access key from hub.arkiv.network (sent as X-API-KEY).",
+    ].join("\n");
+  }
+  const top = chain[0];
+  return String(top?.shortMessage ?? top?.message ?? e).split("\n")[0]!;
+}
+
 main().catch((e: unknown) => {
-  console.error(red(safe(e instanceof Error ? e.message : String(e))));
-  process.exit(1);
+  console.error(red(explain(e).split("\n").map(safe).join("\n")));
+  // Not process.exit(): exiting while sockets are still closing aborts Node on Windows.
+  process.exitCode = 1;
 });
