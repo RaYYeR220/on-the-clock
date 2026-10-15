@@ -5,7 +5,7 @@ import type { Address } from "viem";
 import { LIFETIME, app, fetchAll, kindIs, listWatchers, type OtcEntity, type ReceiptPayload, type WatcherPayload } from "on-the-clock-sdk";
 import { Hash, short } from "@/components/Hash";
 import { liveClient, readClient } from "@/lib/arkiv";
-import { human, useHead, useSecondsUntil } from "@/lib/hooks";
+import { human, pollWhileVisible, useHead, useSecondsUntil } from "@/lib/hooks";
 import css from "./WatcherNetwork.module.css";
 
 type Lease = OtcEntity<WatcherPayload>;
@@ -79,10 +79,10 @@ function useLeases() {
       onError: () => undefined,
     });
     // New watchers announce themselves with a creation we cannot attribute in advance; a slow poll finds them.
-    const poll = setInterval(() => void load(), 30_000);
+    const stopPoll = pollWhileVisible(() => void load(), 60_000);
     return () => {
       stop();
-      clearInterval(poll);
+      stopPoll();
       if (timer) clearTimeout(timer);
     };
   }, [load]);
@@ -335,10 +335,10 @@ function useStatuses() {
       if (live) setProbes(next);
     };
     void run();
-    const t = setInterval(() => void run(), 15_000);
+    const stopPoll = pollWhileVisible(() => void run(), 15_000);
     return () => {
       live = false;
-      clearInterval(t);
+      stopPoll();
     };
   }, []);
   return probes;

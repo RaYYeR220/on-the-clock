@@ -34,6 +34,28 @@ export function useSecondsUntil(block: bigint | null | undefined, head: bigint |
   return Math.max(0, secs);
 }
 
+/**
+ * Calls `run` every `ms` while the page is visible, and once more on return if it skipped any. A tab
+ * left open in the background would otherwise spend the visitor's query budget on nobody.
+ */
+export function pollWhileVisible(run: () => void, ms: number): () => void {
+  let missed = false;
+  const t = setInterval(() => {
+    if (document.hidden) missed = true;
+    else run();
+  }, ms);
+  const onShow = () => {
+    if (document.hidden || !missed) return;
+    missed = false;
+    run();
+  };
+  document.addEventListener("visibilitychange", onShow);
+  return () => {
+    clearInterval(t);
+    document.removeEventListener("visibilitychange", onShow);
+  };
+}
+
 type Watched = { keys: Set<string>; owners: Set<string> };
 
 /**
@@ -66,10 +88,10 @@ function useEventRefresh(load: () => unknown, watched: React.MutableRefObject<Wa
       onOwnershipTransferred: (e) => touches(e.entityKey) && soon(),
       onError: () => undefined,
     });
-    const poll = setInterval(run, everyMs);
+    const stopPoll = pollWhileVisible(run, everyMs);
     return () => {
       stop();
-      clearInterval(poll);
+      stopPoll();
       if (timer) clearTimeout(timer);
     };
   }, [watched, everyMs]);

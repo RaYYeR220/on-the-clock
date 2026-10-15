@@ -35,7 +35,9 @@ let pub: PublicArkivClient | null = null;
 let live: PublicArkivClient | null = null;
 
 export function readClient(): PublicArkivClient {
-  pub ??= createPublicClient({ chain: tiramisu, transport: fallback([coolingDirect(), proxied()], { rank: false }), pollingInterval: 1_000 });
+  // retryCount 0: fallback's own default retries the whole chain three times, so one refused read
+  // became four relay calls.
+  pub ??= createPublicClient({ chain: tiramisu, transport: fallback([coolingDirect(), proxied()], { rank: false, retryCount: 0 }), pollingInterval: 1_000 });
   return pub;
 }
 

@@ -4,6 +4,7 @@ import { formatEther, type Address } from "viem";
 import type { PrivateKeyAccount } from "viem/accounts";
 import { burner, ensureGas, type Role } from "./burner";
 import { readClient } from "./arkiv";
+import { pollWhileVisible } from "./hooks";
 import { Plainly, plain } from "./flow-common";
 
 /** This browser's wallet for a role, once mounted (localStorage does not exist on the server). */
@@ -33,8 +34,7 @@ export function useBalance(address: Address | null | undefined, nonce = 0) {
   }, [address]);
   useEffect(() => {
     void load();
-    const t = setInterval(() => void load(), 15_000);
-    return () => clearInterval(t);
+    return pollWhileVisible(() => void load(), 15_000);
   }, [load, nonce]);
   return { balance, error, reload: load };
 }

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { listWatchers, type OtcEntity, type WatcherPayload, type WatcherRef } from "on-the-clock-sdk";
 import { readClient } from "./arkiv";
+import { pollWhileVisible } from "./hooks";
 import { plain } from "./flow-common";
 
 /**
@@ -59,8 +60,7 @@ export function useWatchers() {
   }, []);
   useEffect(() => {
     void load();
-    const t = setInterval(() => void load(), 45_000);
-    return () => clearInterval(t);
+    return pollWhileVisible(() => void load(), 90_000);
   }, [load]);
   return { set, error, reload: load };
 }

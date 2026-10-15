@@ -66,15 +66,18 @@ export async function POST(req: Request) {
   if (!calls.length || calls.length > 10 || !calls.every(allowed)) {
     return refuse(400, "read-only relay");
   }
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  if (process.env.ARKIV_ACCESS_KEY) headers["X-API-KEY"] = process.env.ARKIV_ACCESS_KEY;
-  const upstream = await fetch(process.env.ARKIV_RPC_URL ?? "https://rpc.tiramisu.db-chain.testnet.arkiv.network", {
-    method: "POST",
-    headers,
-    // Forward exactly what was checked: re-serialised from the parsed object, so a duplicate key or any
-    // other parser difference between us and the upstream cannot smuggle a different method through.
-    body: JSON.stringify(Array.isArray(body) ? calls : calls[0]),
-    cache: "no-store",
-  });
+  const key = process.env.ARKIV_ACCESS_KEY;
+  const send = (withKey: boolean) =>
+    fetch(process.env.ARKIV_RPC_URL ?? "https://rpc.tiramisu.db-chain.testnet.arkiv.network", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...(withKey && key ? { "X-API-KEY": key } : {}) },
+      // Forward exactly what was checked: re-serialised from the parsed object, so a duplicate key or any
+      // other parser difference between us and the upstream cannot smuggle a different method through.
+      body: JSON.stringify(Array.isArray(body) ? calls : calls[0]),
+      cache: "no-store",
+    });
+  let upstream = await send(true);
+  // A key whose monthly quota is spent: try the server's own anonymous budget before giving up.
+  if (upstream.status === 429 && key) upstream = await send(false);
   return new NextResponse(await upstream.text(), { status: upstream.status, headers: { "content-type": "application/json" } });
 }
