@@ -24,17 +24,17 @@ const EXTENDED = ENTITY_EVENTS_ABI.find((e) => e.name === "ExpiryExtended")!;
  */
 const goneExpiry = new Map<string, bigint>();
 
-export async function clockChainExpiry(pub: PublicArkivClient, clockKey: Hex, fromBlock: bigint): Promise<bigint | undefined> {
+export async function clockChainExpiry(pub: PublicArkivClient, clockKey: Hex, fromBlock: bigint, head?: bigint): Promise<bigint | undefined> {
   // Only ever called for clocks that are gone, whose logs can no longer change: cache the answer.
   const cached = goneExpiry.get(clockKey.toLowerCase());
   if (cached !== undefined) return cached;
-  const found = await readChainExpiry(pub, clockKey, fromBlock);
+  const found = await readChainExpiry(pub, clockKey, fromBlock, head);
   if (found !== undefined) goneExpiry.set(clockKey.toLowerCase(), found);
   return found;
 }
 
-async function readChainExpiry(pub: PublicArkivClient, clockKey: Hex, fromBlock: bigint): Promise<bigint | undefined> {
-  const toBlock = await pub.getBlockNumber();
+async function readChainExpiry(pub: PublicArkivClient, clockKey: Hex, fromBlock: bigint, head?: bigint): Promise<bigint | undefined> {
+  const toBlock = head ?? (await pub.getBlockNumber());
   const read = async (from: bigint, to: bigint) => {
     const [created, extended] = await Promise.all([
       pub.getLogs({ address: ARKIV, event: CREATED, args: { entityKey: clockKey }, fromBlock: from, toBlock: to }),
@@ -117,9 +117,11 @@ export async function loadCase(pub: PublicArkivClient, caseKey: Hex): Promise<Ca
   ]);
   const caseEntity = all.find((e) => e.kind === "case" && e.key.toLowerCase() === caseKey.toLowerCase()) as OtcEntity<CasePayload> | undefined;
   if (!caseEntity) return null;
-  const inboxes = await inboxesFor(pub, caseEntity, all);
   const liveClock = all.find((e) => isCaseClock(caseEntity, e)) ?? null;
-  const chainExpiry = liveClock ? undefined : await clockChainExpiry(pub, caseEntity.payload.clock, caseEntity.createdAt);
+  const [inboxes, chainExpiry] = await Promise.all([
+    inboxesFor(pub, caseEntity, all),
+    liveClock ? Promise.resolve(undefined) : clockChainExpiry(pub, caseEntity.payload.clock, caseEntity.createdAt, head),
+  ]);
   // The clock is the entity the case file committed to, by the same author. Anything else that
   // calls itself a clock for this case is noise someone else wrote.
   const clock = all.find((e) => isCaseClock(caseEntity, e)) ?? null;
@@ -167,29 +169,45 @@ export async function loadBoard(pub: PublicArkivClient): Promise<Board> {
       byCase.set(k, [...(byCase.get(k) ?? []), e]);
     }
   }
-  const cases: CaseBundle[] = [];
   const inboxes = all.filter((e) => e.kind === "inbox") as OtcEntity<InboxPayload>[];
-  for (const e of all) {
-    if (e.kind !== "case") continue;
-    const caseEntity = e as OtcEntity<CasePayload>;
-    const rel = byCase.get(e.key.toLowerCase()) ?? [];
+  const prepared = (all.filter((e) => e.kind === "case") as OtcEntity<CasePayload>[]).map((caseEntity) => {
+    const rel = byCase.get(caseEntity.key.toLowerCase()) ?? [];
     const clock = rel.find((r) => isCaseClock(caseEntity, r)) ?? null;
-    const related = rel.filter((r) => r !== clock);
-    const chainExpiry = clock ? undefined : await clockChainExpiry(pub, caseEntity.payload.clock, caseEntity.createdAt);
-    cases.push({
+    return { caseEntity, clock, related: rel.filter((r) => r !== clock) };
+  });
+  // Gone clocks need their logs; read them a few at a time rather than one after another.
+  const expiries = await mapLimit(prepared, 8, (x) =>
+    x.clock ? Promise.resolve(undefined) : clockChainExpiry(pub, x.caseEntity.payload.clock, x.caseEntity.createdAt, head),
+  );
+  const cases: CaseBundle[] = prepared.map(({ caseEntity, clock, related }, i) => {
+    const chainExpiry = expiries[i];
+    return {
       view: deriveCase({ caseEntity, related, clock, head, inboxes, ...(chainExpiry !== undefined ? { chainExpiry } : {}) }),
       caseEntity,
       related,
       clock,
       head,
-    });
-  }
+    };
+  });
   return {
     head,
     cases,
     inboxes,
     watchers: dedupeByCreator(all.filter((e) => e.kind === "watcher") as OtcEntity<WatcherPayload>[]),
   };
+}
+
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]!);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
 }
 
 function dedupeByCreator<T extends OtcEntity>(list: T[]): T[] {

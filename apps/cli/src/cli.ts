@@ -112,7 +112,9 @@ async function verify(caseKey: string | undefined, asJson: boolean) {
   if (view.responderBound === null && view.timeline.some((t) => ["ack", "extreq", "fixed"].includes(t.kind) && t.verdict === "verified")) {
     console.log(dim("  vendor acts are verified against the case's responder address; a reveal binds that address to the vendor"));
   }
-  console.log(`\n${dim("receipts")} ${view.receipts.valid}/${view.k} valid${view.receipts.foreign.length ? `, ${view.receipts.foreign.length} from non-watchers ignored` : ""}${view.receipts.premature.length ? red(`, ${view.receipts.premature.length} premature`) : ""}`);
+  const closing = view.status === "withdrawn" ? view.receipts.withdrawn : view.status === "disclosed" ? view.receipts.disclosed : 0;
+  if (closing) console.log(`\n${dim("receipts")} ${closing} watcher${closing === 1 ? "" : "s"} saw the clock deleted before its deadline (${view.status})`);
+  else console.log(`\n${dim("receipts")} ${view.receipts.valid}/${view.k} valid${view.receipts.foreign.length ? `, ${view.receipts.foreign.length} from non-watchers ignored` : ""}${view.receipts.premature.length ? red(`, ${view.receipts.premature.length} premature`) : ""}`);
   if (reveal) {
     const ok = reveal.ok ? green("verified") : red("FAILED");
     console.log(`\n${bold("reveal")} ${ok}  ${dim(json(reveal.checks).replace(/\s+/g, " "))}`);

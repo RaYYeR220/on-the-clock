@@ -11,6 +11,7 @@ import s from "./board.module.css";
 export function BoardRow({ bundle, head, at }: { bundle: CaseBundle; head: bigint | null; at: number }) {
   const v = bundle.view;
   const live = v.clock.live;
+  const closedEarly = !live && (v.status === "withdrawn" || v.status === "disclosed");
   const secs = useSecondsUntil(live ? v.clock.expiresAt : null, head, at);
   const total = Number(v.clock.expiresAt - bundle.caseEntity.createdAt) * BLOCK_SECONDS;
   const fraction = live && secs !== null && total > 0 ? secs / total : 0;
@@ -52,6 +53,11 @@ export function BoardRow({ bundle, head, at }: { bundle: CaseBundle; head: bigin
             <span className={`${s.count} mono`}>{human(secs)}</span>
             <span className={s.sub}>left · block {blocks(v.clock.expiresAt)}</span>
           </>
+        ) : closedEarly ? (
+          <>
+            <span className={`${s.count} ${s.ended} mono`}>closed early</span>
+            <span className={s.sub}>deadline was block {blocks(v.filedDeadline)}</span>
+          </>
         ) : (
           <>
             <span className={`${s.count} ${s.ended} mono`}>ended</span>
@@ -74,8 +80,8 @@ export function BoardRow({ bundle, head, at }: { bundle: CaseBundle; head: bigin
         </div>
         <div>
           <dt>receipts</dt>
-          <dd>
-            {v.receipts.valid}/{v.k}
+          <dd title={closedEarly ? `watchers that saw the clock deleted before its deadline (${v.status})` : "lapse receipts with a share / shares needed"}>
+            {closedEarly ? `${v.status === "withdrawn" ? v.receipts.withdrawn : v.receipts.disclosed} ${v.status}` : `${v.receipts.valid}/${v.k}`}
           </dd>
         </div>
       </dl>

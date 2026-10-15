@@ -65,7 +65,8 @@ export interface CaseView {
   ackedAt?: bigint;
   fixedAt?: bigint;
   extensions: { requested: number; granted: number; seconds: number };
-  receipts: { valid: number; premature: Address[]; foreign: Address[]; withdrawn: number; conflicting: Address[] };
+  /** valid: lapse receipts carrying a share. withdrawn / disclosed: watchers that saw the clock deleted early. */
+  receipts: { valid: number; premature: Address[]; foreign: Address[]; withdrawn: number; disclosed: number; conflicting: Address[] };
   shares: Hex[];
   reveal?: OtcEntity<RevealPayload>;
   /** A verified watcher-side reveal written before the deadline: evidence that k watchers colluded. */
@@ -202,10 +203,11 @@ export function deriveCase({ caseEntity, related, clock: candidate, head, inboxe
   const custodyMismatch = !!clock && !eqAddr(clock.owner, custodian);
 
   // Pass 2: receipts and reveals, judged against the deadline the records support.
-  const receipts = { valid: 0, premature: [] as Address[], foreign: [] as Address[], withdrawn: 0, conflicting: [] as Address[] };
+  const receipts = { valid: 0, premature: [] as Address[], foreign: [] as Address[], withdrawn: 0, disclosed: 0, conflicting: [] as Address[] };
   const shares: Hex[] = [];
   const counted = new Set<string>();
   const withdrawnBy = new Set<string>();
+  const disclosedBy = new Set<string>();
   let reveal: OtcEntity<RevealPayload> | undefined;
   let revealBundle: RevealBundle | undefined;
   let disclosedByResearcher = false;
@@ -234,6 +236,7 @@ export function deriveCase({ caseEntity, related, clock: candidate, head, inboxe
       } else {
         verdicts.set(e.key, { verdict: "verified" });
         if (rp.outcome === "withdrawn") withdrawnBy.add(e.creator.toLowerCase());
+        if (rp.outcome === "disclosed") disclosedBy.add(e.creator.toLowerCase());
       }
     } else if (e.kind === "reveal") {
       const rv = e as OtcEntity<RevealPayload>;
@@ -258,6 +261,7 @@ export function deriveCase({ caseEntity, related, clock: candidate, head, inboxe
   }
 
   receipts.withdrawn = withdrawnBy.size;
+  receipts.disclosed = disclosedBy.size;
   receipts.conflicting = watchers.filter((w) => counted.has(w.toLowerCase()) && withdrawnBy.has(w.toLowerCase()));
 
   // Order matters: k verified shares can never be outvoted by a watcher claiming withdrawal, and a
