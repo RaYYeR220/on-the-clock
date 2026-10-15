@@ -1,0 +1,48 @@
+{
+  "name": "on-the-clock-sdk",
+  "version": "0.1.0",
+  "description": "Protocol SDK for On the Clock: self-enforcing vulnerability-disclosure deadlines on Arkiv.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup && tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "arkiv",
+    "vulnerability-disclosure",
+    "embargo",
+    "stealth-address",
+    "erc-5564",
+    "shamir"
+  ],
+  "dependencies": {
+    "@arkiv-network/sdk": "0.8.1",
+    "@noble/ciphers": "^2.4.0",
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
+    "shamir-secret-sharing": "^0.0.4",
+    "viem": "^2.57.4"
+  },
+  "devDependencies": {
+    "@scopelift/stealth-address-sdk": "1.0.0-beta.5",
+    "@types/node": "^26.6.4",
+    "tsup": "^8.5.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}
