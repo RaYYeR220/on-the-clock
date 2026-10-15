@@ -6,8 +6,8 @@ platform, no promise, no one to ask.
 
 Built on [Arkiv](https://arkiv.network), the Web3 database, on the Tiramisu testnet (chain `7738577`).
 
-- **Live app:** https://on-the-clock.vercel.app
-- **Watch one run (≈5 min, no wallet, no faucet):** https://on-the-clock.vercel.app/demo
+- **Live app:** https://on-the-clock-arkiv.vercel.app
+- **Watch one run (≈5 min, no wallet, no faucet):** https://on-the-clock-arkiv.vercel.app/demo
 - **Data contract:** [`arkiv/schema.md`](arkiv/schema.md)
 - **Friction report:** [`arkiv/friction.md`](arkiv/friction.md)
 - **Every claim, with explorer links:** [`PROOF.md`](PROOF.md)
