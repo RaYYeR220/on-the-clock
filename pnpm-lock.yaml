@@ -8,6 +8,25 @@ importers:
 
   .: {}
 
+  apps/cli:
+    dependencies:
+      on-the-clock-sdk:
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      viem:
+        specifier: ^2.57.4
+        version: 2.57.4(typescript@7.0.2)
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.4
+        version: 26.6.4
+      tsup:
+        specifier: ^8.5.1
+        version: 8.5.1(postcss@8.5.29)(typescript@7.0.2)
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
   packages/sdk:
     dependencies:
       '@arkiv-network/sdk':
@@ -44,6 +63,18 @@ importers:
       vitest:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@26.6.4)(vite@8.3.3(@types/node@26.6.4)(esbuild@0.27.7))
+
+  scripts:
+    dependencies:
+      '@arkiv-network/sdk':
+        specifier: 0.8.1
+        version: 0.8.1(typescript@7.0.2)(viem@2.57.4(typescript@7.0.2))
+      on-the-clock-sdk:
+        specifier: workspace:*
+        version: link:../packages/sdk
+      viem:
+        specifier: ^2.57.4
+        version: 2.57.4(typescript@7.0.2)
 
 packages:
 
