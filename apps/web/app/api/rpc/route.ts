@@ -2,6 +2,7 @@
 // budget is exhausted. It serves this site's pages only (same origin), forwards Arkiv reads only,
 // and is rate limited per IP, so the key's quota cannot be borrowed by anyone else.
 import { NextResponse } from "next/server";
+import { toFunctionSelector } from "viem";
 import { Window, clientIp, sameOrigin } from "@/lib/limits";
 
 export const runtime = "nodejs";
@@ -13,14 +14,35 @@ const READS = new Set([
   "eth_getBalance",
   "eth_getLogs",
   "eth_getTransactionReceipt",
+  "eth_getTransactionByHash",
   "arkiv_query",
   "arkiv_getEntity",
   "arkiv_getEntityCount",
+  "arkiv_getBlockTiming",
 ]);
+// eth_call is allowed for one view only: the entity contract's entityNonce(owner), which filing
+// needs to predict its keys. Any other target or function is refused.
+const ARKIV_ADDRESS = "0x4400000000000000000000000000000000000044";
+const ENTITY_NONCE = toFunctionSelector("function entityNonce(address owner) view returns (uint64)");
 const MAX_BODY = 16_384;
 const perIp = new Window(240, 60_000);
 
-type RpcCall = { method?: string };
+type RpcCall = { method?: string; params?: unknown };
+
+function allowed(c: RpcCall): boolean {
+  if (typeof c.method !== "string") return false;
+  if (READS.has(c.method)) return true;
+  if (c.method !== "eth_call" || !Array.isArray(c.params)) return false;
+  const tx = c.params[0] as { to?: unknown; data?: unknown; input?: unknown } | undefined;
+  const data = tx?.data ?? tx?.input;
+  return (
+    typeof tx?.to === "string" &&
+    tx.to.toLowerCase() === ARKIV_ADDRESS &&
+    typeof data === "string" &&
+    data.length === 74 &&
+    data.toLowerCase().startsWith(ENTITY_NONCE)
+  );
+}
 const refuse = (status: number, message: string) =>
   NextResponse.json({ jsonrpc: "2.0", id: null, error: { code: -32601, message } }, { status });
 
@@ -41,7 +63,7 @@ export async function POST(req: Request) {
     method: c?.method,
     params: (c as { params?: unknown })?.params ?? [],
   }));
-  if (!calls.length || calls.length > 10 || calls.some((c) => typeof c.method !== "string" || !READS.has(c.method))) {
+  if (!calls.length || calls.length > 10 || !calls.every(allowed)) {
     return refuse(400, "read-only relay");
   }
   const headers: Record<string, string> = { "content-type": "application/json" };
