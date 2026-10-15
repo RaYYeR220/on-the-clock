@@ -51,6 +51,9 @@ function cfg(): ArkivConfig {
   };
 }
 
+/** Strips control characters (incl. ESC) from text that came from someone else's entity. */
+export const safe = (v: unknown) => String(v ?? "").replace(/[\u0000-\u001f\u007f-\u009f]/g, "");
+
 const json = (v: unknown) => JSON.stringify(v, (_, x) => (typeof x === "bigint" ? x.toString() : x), 2);
 
 export function human(seconds: number): string {
@@ -105,16 +108,19 @@ async function verify(caseKey: string | undefined, asJson: boolean) {
     const extra = [t.seconds ? `+${human(t.seconds)}` : "", t.outcome ?? "", t.to ? `→ ${short(t.to)}` : ""].filter(Boolean).join(" ");
     console.log(`  ${mark} block ${String(t.block).padEnd(9)} ${t.kind.padEnd(8)} by ${short(t.by)} ${extra}${t.reason ? dim(`  (${t.reason})`) : ""}`);
   }
+  if (view.responderBound === null && view.timeline.some((t) => ["ack", "extreq", "fixed"].includes(t.kind) && t.verdict === "verified")) {
+    console.log(dim("  vendor acts are verified against the case's responder address; a reveal binds that address to the vendor"));
+  }
   console.log(`\n${dim("receipts")} ${view.receipts.valid}/${view.k} valid${view.receipts.foreign.length ? `, ${view.receipts.foreign.length} from non-watchers ignored` : ""}${view.receipts.premature.length ? red(`, ${view.receipts.premature.length} premature`) : ""}`);
   if (reveal) {
     const ok = reveal.ok ? green("verified") : red("FAILED");
     console.log(`\n${bold("reveal")} ${ok}  ${dim(json(reveal.checks).replace(/\s+/g, " "))}`);
-    if (view.vendor) console.log(`  vendor  ${bold(view.vendor.name)} ${dim(view.vendor.address)} ${green("(inbox checked)")}`);
+    if (view.vendor) console.log(`  vendor  ${bold(safe(view.vendor.name))} ${dim(view.vendor.address)} ${green("(inbox checked)")}`);
     else console.log(`  vendor  ${yellow(`not confirmed (attribution: ${view.attribution ?? "n/a"})`)}`);
     if (reveal.advisory) {
-      console.log(`  title   ${reveal.advisory.title}`);
-      console.log(`  where   ${reveal.advisory.component}${reveal.advisory.cwe ? ` (${reveal.advisory.cwe})` : ""}`);
-      console.log(`  summary ${reveal.advisory.summary}`);
+      console.log(`  title   ${safe(reveal.advisory.title)}`);
+      console.log(`  where   ${safe(reveal.advisory.component)}${reveal.advisory.cwe ? ` (${safe(reveal.advisory.cwe)})` : ""}`);
+      console.log(`  summary ${safe(reveal.advisory.summary)}`);
     }
   }
 }
@@ -138,7 +144,7 @@ async function board(asJson: boolean) {
 async function inboxes(asJson: boolean) {
   const list = await listInboxes(publicClient(cfg()));
   if (asJson) return console.log(json(list.map((i) => ({ key: i.key, vendor: i.creator, ...i.payload, expiresAt: i.expiresAt }))));
-  for (const i of list) console.log(`  ${bold(i.payload.name.padEnd(28))} sla ${i.payload.sla}d · embargo ${i.payload.embargo}d · ${dim(i.creator)} ${dim(i.key)}`);
+  for (const i of list) console.log(`  ${bold(safe(i.payload?.name).padEnd(28))} sla ${safe(i.payload?.sla)}d · embargo ${safe(i.payload?.embargo)}d · ${dim(i.creator)} ${dim(i.key)}`);
 }
 
 function queries(caseKey: string | undefined) {
@@ -211,6 +217,6 @@ async function main() {
 }
 
 main().catch((e: unknown) => {
-  console.error(red(e instanceof Error ? e.message : String(e)));
+  console.error(red(safe(e instanceof Error ? e.message : String(e))));
   process.exit(1);
 });

@@ -112,15 +112,38 @@ describe("lapse and reveal", () => {
     const sealed = await file();
     const r = verifyRevealKey(caseKey, sealed.payload, sealed.advisoryKey, inbox);
     expect(r.ok).toBe(true);
-    expect(r.checks).toEqual({ decrypts: true, commitment: true, responderBinding: true, inbox: true });
+    expect(r.checks).toEqual({ decrypts: true, commitment: true, delivery: true, responderBinding: true, inbox: true });
     expect(r.bundle?.name).toBe("Halcyon Bridge");
     expect(r.advisory?.cwe).toBe("CWE-294");
   });
 
-  it("the reveal does not hand out the full report", async () => {
+  it("the reveal does not hand out the full report, even with the addressing key opened", async () => {
     const sealed = await file();
     const r = verifyRevealKey(caseKey, sealed.payload, sealed.advisoryKey, inbox);
     expect(JSON.stringify(r)).not.toContain("full details");
+    // Anyone holding the revealed r can rebuild the addressing secret, but the report is keyed by r2.
+    const { secp256k1 } = await import("@noble/curves/secp256k1.js");
+    const { deriveKey, open } = await import("../src/crypto/box.js");
+    const { hexToBytes } = await import("viem/utils");
+    const s = secp256k1.getSharedSecret(hexToBytes(r.bundle!.r), hexToBytes(vendorKeys.viewingPublicKey), true);
+    expect(() => open(deriveKey(s, "on-the-clock/report/v1", hexToBytes(caseKey)), sealed.payload.vendorBox, hexToBytes(caseKey))).toThrow();
+  });
+
+  it("a case never delivered to a vendor cannot be revealed against them", async () => {
+    // Framing attempt: pick an arbitrary tweak, derive a responder from the victim's PUBLIC spending
+    // key, and claim delivery. Without a real r for the published R, delivery fails.
+    const sealed = await file();
+    const { stealthAddressFromTweak } = await import("../src/crypto/stealth.js");
+    const forgedResponder = stealthAddressFromTweak(vendorKeys.spendingPublicKey, `0x${"42".repeat(32)}`);
+    const framed = { ...sealed.payload, responder: forgedResponder };
+    const r = verifyRevealKey(caseKey, framed, sealed.advisoryKey, inbox);
+    expect(r.checks.delivery).toBe(true);
+    expect(r.checks.responderBinding).toBe(false);
+    expect(r.ok).toBe(false);
+    const otherR = { ...sealed.payload, eph: vendorKeys.spendingPublicKey };
+    const r2 = verifyRevealKey(caseKey, otherR, sealed.advisoryKey, inbox);
+    expect(r2.checks.delivery).toBe(false);
+    expect(r2.ok).toBe(false);
   });
 
   it("rejects a wrong key and a reveal that names a different vendor's inbox", async () => {

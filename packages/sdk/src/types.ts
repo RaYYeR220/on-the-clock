@@ -42,11 +42,16 @@ export interface CasePayload {
   /** ERC-5564 ephemeral public key and view tag: how the vendor finds the case. */
   eph: Hex;
   vt: number;
+  /**
+   * A second ephemeral key, only for the report. The addressing key `eph` is opened at reveal time to
+   * prove delivery; this one never is, so a reveal can never unlock the full report.
+   */
+  eph2: Hex;
   /** One-time stealth address the vendor answers from. */
   responder: Address;
   /** keccak(inboxKey ‖ salt): binds the case to one vendor without naming it. */
   vcommit: Hex;
-  /** Full report for the vendor, sealed under HKDF(shared secret). Never auto-released. */
+  /** Full report for the vendor, sealed under HKDF(r2·P_view). Never auto-released. */
   vendorBox: Hex;
   /** The researcher's own copy. */
   selfBox: EciesBox;
@@ -132,8 +137,12 @@ export interface RevealBundle {
   vendor: Address;
   name: string;
   salt: Hex;
-  /** keccak(shared secret). Proves responder = P_spend + h·G without exposing the report key. */
-  h: Hex;
+  /**
+   * The addressing ephemeral private key. With it anyone can recompute R = r·G, the view tag and the
+   * responder from the vendor's meta-address: proof the case was actually addressed to that vendor's
+   * keys (delivered), not just to an address derived from their public key.
+   */
+  r: Hex;
   meta: MetaAddress;
 }
 

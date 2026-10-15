@@ -1,4 +1,5 @@
 // Assembling and opening a case. Pure crypto, no network: everything here is unit-tested.
+import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { keccak256, type Address, type Hex } from "viem";
 import { bytesToHex, hexToBytes } from "viem/utils";
 import {
@@ -18,7 +19,6 @@ import {
   checkStealth,
   generateStealthAddress,
   parseMetaAddress,
-  stealthAddressFromTweak,
   type StealthKeys,
 } from "./crypto/stealth.js";
 import type {
@@ -77,12 +77,16 @@ export async function sealCase(input: SealCaseInput): Promise<SealedCase> {
   const aad = hexToBytes(caseKey);
   if (input.watchers.length < input.k) throw new Error("fewer watchers than the threshold");
 
-  const stealth = generateStealthAddress(input.inbox.payload.meta);
+  const r = bytesToHex(secp256k1.utils.randomSecretKey());
+  const stealth = generateStealthAddress(input.inbox.payload.meta, r);
+  const { viewingPublicKey } = parseMetaAddress(input.inbox.payload.meta);
+  const r2 = secp256k1.utils.randomSecretKey();
+  const eph2 = bytesToHex(secp256k1.getPublicKey(r2, true));
   const pocHash = sha256Hex(input.poc);
   const report: Report = { ...input.report, pocHash };
   const reportBytes = json(report);
 
-  const vendorKey = deriveKey(stealth.sharedSecret, REPORT_INFO, aad);
+  const vendorKey = deriveKey(secp256k1.getSharedSecret(r2, hexToBytes(viewingPublicKey), true), REPORT_INFO, aad);
   const vendorBox = seal(vendorKey, reportBytes, aad);
   const selfBox = eciesEncrypt(publicKeyOf(input.researcherSelfKey), reportBytes, aad);
 
@@ -92,7 +96,7 @@ export async function sealCase(input: SealCaseInput): Promise<SealedCase> {
     vendor: input.inbox.creator,
     name: input.inbox.payload.name,
     salt,
-    h: stealth.hashedSharedSecret,
+    r,
     meta: input.inbox.payload.meta,
   };
   const K = randomBytes(32);
@@ -116,6 +120,7 @@ export async function sealCase(input: SealCaseInput): Promise<SealedCase> {
       v: 1,
       eph: stealth.ephemeralPublicKey,
       vt: stealth.viewTag,
+      eph2,
       responder: stealth.stealthAddress,
       vcommit: vendorCommitment(input.inbox.key, salt),
       vendorBox,
@@ -146,7 +151,8 @@ export function openForVendor(caseKey: Hex, payload: CasePayload, keys: StealthK
   const m = checkStealth(payload.eph, payload.vt, keys);
   if (!m || m.stealthAddress.toLowerCase() !== payload.responder.toLowerCase()) return null;
   const aad = hexToBytes(caseKey);
-  const bytes = open(deriveKey(m.sharedSecret, REPORT_INFO, aad), payload.vendorBox, aad);
+  const s2 = secp256k1.getSharedSecret(hexToBytes(keys.viewingPrivateKey), hexToBytes(payload.eph2), true);
+  const bytes = open(deriveKey(s2, REPORT_INFO, aad), payload.vendorBox, aad);
   if (sha256Hex(bytes) !== payload.reportHash) throw new Error("report does not match its committed hash");
   return { responder: m.stealthAddress, hashedSharedSecret: m.hashedSharedSecret, report: JSON.parse(dec.decode(bytes)) as Report };
 }
@@ -177,7 +183,9 @@ export interface RevealChecks {
   decrypts: boolean;
   /** The bundle opens the vendor commitment written at filing time. */
   commitment: boolean;
-  /** The responder that acted on the case derives from this vendor's spending key. */
+  /** The case was addressed to this vendor's viewing key: r reproduces the published R and view tag. */
+  delivery: boolean;
+  /** The responder that acted on the case derives from this vendor's spending key, via that delivery. */
   responderBinding: boolean;
   /** The named inbox was created by the named vendor and carries the same meta-address. */
   inbox: boolean | null;
@@ -197,7 +205,7 @@ export function verifyRevealKey(
   key: Hex,
   inbox?: { creator: Address; payload: InboxPayload } | null,
 ): RevealResult {
-  const checks: RevealChecks = { decrypts: false, commitment: false, responderBinding: false, inbox: null };
+  const checks: RevealChecks = { decrypts: false, commitment: false, delivery: false, responderBinding: false, inbox: null };
   let sealed: SealedAdvisory;
   try {
     sealed = JSON.parse(dec.decode(open(hexToBytes(key), payload.advisoryBox, hexToBytes(caseKey)))) as SealedAdvisory;
@@ -208,15 +216,18 @@ export function verifyRevealKey(
   const b = sealed.bundle;
   checks.commitment = vendorCommitment(b.inbox, b.salt) === payload.vcommit;
   try {
-    const { spendingPublicKey } = parseMetaAddress(b.meta);
-    checks.responderBinding = stealthAddressFromTweak(spendingPublicKey, b.h).toLowerCase() === payload.responder.toLowerCase();
+    // Recompute the addressing from scratch: R = r·G, S = r·P_view, h = keccak(S), responder = P_spend + h·G.
+    const g = generateStealthAddress(b.meta, b.r);
+    checks.delivery = g.ephemeralPublicKey.toLowerCase() === payload.eph.toLowerCase() && g.viewTag === payload.vt;
+    checks.responderBinding = checks.delivery && g.stealthAddress.toLowerCase() === payload.responder.toLowerCase();
   } catch {
+    checks.delivery = false;
     checks.responderBinding = false;
   }
   if (inbox) {
     checks.inbox = inbox.creator.toLowerCase() === b.vendor.toLowerCase() && inbox.payload.meta === b.meta;
   }
-  const ok = checks.decrypts && checks.commitment && checks.responderBinding && checks.inbox !== false;
+  const ok = checks.decrypts && checks.commitment && checks.delivery && checks.responderBinding && checks.inbox !== false;
   return { ok, checks, advisory: sealed.advisory, bundle: b, key };
 }
 

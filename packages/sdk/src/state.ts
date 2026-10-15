@@ -69,6 +69,15 @@ export interface CaseView {
   attribution: "verified" | "mismatch" | "unknown" | null;
   /** Present only when attribution is verified. */
   vendor?: { name: string; address: Address; inbox: Hex };
+  /**
+   * How far a "verified" vendor act can be trusted. The responder address is written into the case by
+   * the researcher, so until a reveal proves responder = P_spend + h·G for the vendor's key, a verified
+   * ack only means "written by the address this case names as its responder" (a pseudonym the
+   * researcher could, in principle, control). After a verified reveal it means "written by the vendor".
+   *   null  - not yet bound (embargo running, or nothing revealed)
+   *   true  - bound by a verified reveal
+   */
+  responderBound: true | null;
 }
 
 export interface DeriveInput {
@@ -202,7 +211,7 @@ export function deriveCase({ caseEntity, related, clock: candidate, head, inboxe
       // A reveal is trusted by recomputation, never by its author: the key must open this case's
       // advisory, open its vendor commitment, and bind its responder to the named vendor.
       const check = typeof rv.payload?.key === "string" ? verifyRevealKey(caseEntity.key, p, rv.payload.key) : null;
-      if (!check || !check.checks.decrypts || !check.checks.commitment || !check.checks.responderBinding) {
+      if (!check || !check.checks.decrypts || !check.checks.commitment || !check.checks.delivery || !check.checks.responderBinding) {
         verdicts.set(e.key, { verdict: "ignored", reason: "its key does not open this case" });
         continue;
       }
@@ -271,6 +280,8 @@ export function deriveCase({ caseEntity, related, clock: candidate, head, inboxe
     ...(reveal ? { reveal } : {}),
     revealedEarly: !!reveal && reveal.payload.by === "watchers" && reveal.createdAt < expectedExpiry,
     ...attribute(reveal, revealBundle, inboxes),
+    // A reveal only counts after its key passed the responder-binding check above.
+    responderBound: reveal ? true : null,
   };
 }
 
