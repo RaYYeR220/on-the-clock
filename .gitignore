@@ -1,0 +1,39 @@
+# dependencies / build
+node_modules/
+.pnpm-store/
+dist/
+.next/
+out/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# env & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+wallets.json
+keys/
+
+# local editor and scratch files
+.vscode/
+.idea/
+.playwright-mcp/
+*-backup*
+*.bundle
+scratch/
+tmp/
+ui-prototypes/
+mockups/
+design-ref/
+variants/
+screencast/
+video/
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+.vercel
