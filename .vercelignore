@@ -6,5 +6,5 @@
 **/dist
 **/bundle
 **/.next
-proof
-docker
+/proof
+/docker
