@@ -30,12 +30,18 @@ export class Window {
     recent.push(now);
     this.hits.delete(key);
     this.hits.set(key, recent);
-    // Bound memory by evicting the least recently used keys, never by resetting everyone's budget.
-    while (this.hits.size > 10_000) {
-      const oldest = this.hits.keys().next().value as string;
-      this.hits.delete(oldest);
-    }
+    if (this.hits.size > Window.SOFT_CAP) this.prune(now);
     return true;
+  }
+
+  // Memory bound. Expired windows go first; only past a hard cap (a flood of distinct addresses far
+  // beyond any real audience) are the least recently used live windows dropped.
+  private static readonly SOFT_CAP = 20_000;
+  private static readonly HARD_CAP = 100_000;
+
+  private prune(now: number) {
+    for (const [k, ts] of this.hits) if (!ts.some((t) => now - t < this.ms)) this.hits.delete(k);
+    while (this.hits.size > Window.HARD_CAP) this.hits.delete(this.hits.keys().next().value as string);
   }
 }
 

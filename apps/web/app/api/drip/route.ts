@@ -14,8 +14,10 @@ const DRIP = parseEther("0.006");
 const ENOUGH = parseEther("0.003");
 const FLOOR = parseEther("0.05");
 
-const perIp = new Window(6, 3_600_000);
-const global = new Window(120, 3_600_000);
+// Few per network, many in total: a handful of addresses cannot close the demo to everyone else,
+// and the faucet's own balance (FLOOR) is the real ceiling on what can be drained.
+const perIp = new Window(4, 3_600_000);
+const global = new Window(400, 3_600_000);
 const served = new Set<string>();
 const inFlight = new Set<string>();
 
