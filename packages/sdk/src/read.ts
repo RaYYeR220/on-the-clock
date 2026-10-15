@@ -22,7 +22,18 @@ const EXTENDED = ENTITY_EVENTS_ABI.find((e) => e.name === "ExpiryExtended")!;
  * ExpiryExtended. This is what the chain actually did, independent of anyone's records. Returns
  * undefined when the logs cannot be read (e.g. the RPC refuses the range).
  */
+const goneExpiry = new Map<string, bigint>();
+
 export async function clockChainExpiry(pub: PublicArkivClient, clockKey: Hex, fromBlock: bigint): Promise<bigint | undefined> {
+  // Only ever called for clocks that are gone, whose logs can no longer change: cache the answer.
+  const cached = goneExpiry.get(clockKey.toLowerCase());
+  if (cached !== undefined) return cached;
+  const found = await readChainExpiry(pub, clockKey, fromBlock);
+  if (found !== undefined) goneExpiry.set(clockKey.toLowerCase(), found);
+  return found;
+}
+
+async function readChainExpiry(pub: PublicArkivClient, clockKey: Hex, fromBlock: bigint): Promise<bigint | undefined> {
   const toBlock = await pub.getBlockNumber();
   const read = async (from: bigint, to: bigint) => {
     const [created, extended] = await Promise.all([

@@ -43,7 +43,7 @@
     "@scopelift/stealth-address-sdk": "1.0.0-beta.5",
     "@types/node": "^26.6.4",
     "tsup": "^8.5.1",
-    "typescript": "^7.0.2",
+    "typescript": "^6.0.3",
     "vitest": "^5.0.3"
   }
 }
