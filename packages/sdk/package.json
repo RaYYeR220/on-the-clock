@@ -3,6 +3,16 @@
   "version": "0.1.0",
   "description": "Protocol SDK for On the Clock: self-enforcing vulnerability-disclosure deadlines on Arkiv.",
   "license": "MIT",
+  "author": "RaYYeR220",
+  "homepage": "https://on-the-clock-arkiv.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RaYYeR220/on-the-clock.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/RaYYeR220/on-the-clock/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -45,5 +55,8 @@
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
     "vitest": "^5.0.3"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

@@ -3,17 +3,17 @@ import { parseEther } from "viem";
 import { account, balance, log, pub, wallet } from "./lib.ts";
 
 const TARGETS: Record<string, string> = {
-  WATCHER_1: "0.03",
-  WATCHER_2: "0.03",
-  WATCHER_3: "0.03",
-  DRIP: "0.2",
-  SEED_RESEARCHER_1: "0.03",
-  SEED_RESEARCHER_2: "0.03",
-  SEED_VENDOR_1: "0.01",
-  SEED_VENDOR_2: "0.01",
-  SEED_VENDOR_3: "0.01",
-  SEED_COORDINATOR: "0.01",
-  SEED_IMPOSTOR: "0.01",
+  WATCHER_1: "0.4",
+  WATCHER_2: "0.4",
+  WATCHER_3: "0.4",
+  DRIP: "2",
+  SEED_RESEARCHER_1: "0.2",
+  SEED_RESEARCHER_2: "0.2",
+  SEED_VENDOR_1: "0.05",
+  SEED_VENDOR_2: "0.05",
+  SEED_VENDOR_3: "0.05",
+  SEED_COORDINATOR: "0.05",
+  SEED_IMPOSTOR: "0.05",
 };
 
 const treasury = wallet("TREASURY");

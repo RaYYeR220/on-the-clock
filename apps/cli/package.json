@@ -3,6 +3,16 @@
   "version": "0.1.0",
   "description": "Verify vulnerability-disclosure clocks on Arkiv, or run a watcher that releases them when they lapse.",
   "license": "MIT",
+  "author": "RaYYeR220",
+  "homepage": "https://on-the-clock-arkiv.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RaYYeR220/on-the-clock.git",
+    "directory": "apps/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/RaYYeR220/on-the-clock/issues"
+  },
   "type": "module",
   "bin": {
     "on-the-clock": "./dist/cli.js"
