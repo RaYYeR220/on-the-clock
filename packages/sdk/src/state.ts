@@ -4,6 +4,7 @@
 // Trust comes from `$creator` alone. Attributes and payloads are claims; who wrote an entity is not.
 import type { Address, Hex } from "viem";
 import type { Kind, Outcome } from "./constants.js";
+import { verifyRevealKey } from "./seal.js";
 import type { CasePayload, GrantPayload, OtcEntity, ReceiptPayload, RevealPayload } from "./types.js";
 
 export type CaseStatus =
@@ -51,16 +52,21 @@ export interface CaseView {
   ackedAt?: bigint;
   fixedAt?: bigint;
   extensions: { requested: number; granted: number; days: number };
-  receipts: { valid: number; premature: Address[]; foreign: Address[]; withdrawn: number };
+  receipts: { valid: number; premature: Address[]; foreign: Address[]; withdrawn: number; conflicting: Address[] };
   shares: Hex[];
   reveal?: OtcEntity<RevealPayload>;
+  /** A verified watcher-side reveal written before the deadline: evidence that k watchers colluded. */
+  revealedEarly: boolean;
 }
 
 export interface DeriveInput {
   caseEntity: OtcEntity<CasePayload>;
   /** Every entity with `case = key(caseEntity)`. Order does not matter. */
   related: OtcEntity[];
-  /** The live clock, or null once it has lapsed or been deleted. */
+  /**
+   * The live clock, or null once it has lapsed or been deleted. Only the entity whose key the case
+   * file committed to, written by the case's researcher, is accepted; anything else is treated as absent.
+   */
   clock: OtcEntity | null;
   head: bigint;
 }
@@ -70,8 +76,13 @@ const TIMELINE_KINDS: ReadonlySet<Kind> = new Set(["ack", "extreq", "fixed", "gr
 const eqAddr = (a: string | undefined, b: string | undefined) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
 const num = (v: unknown) => (typeof v === "bigint" ? Number(v) : typeof v === "number" ? v : Number(v ?? 0));
 
-export function deriveCase({ caseEntity, related, clock, head }: DeriveInput): CaseView {
+export function isCaseClock(caseEntity: OtcEntity<CasePayload>, e: OtcEntity | null | undefined): e is OtcEntity {
+  return !!e && e.kind === "clock" && e.key.toLowerCase() === caseEntity.payload.clock.toLowerCase() && eqAddr(e.creator, caseEntity.creator);
+}
+
+export function deriveCase({ caseEntity, related, clock: candidate, head }: DeriveInput): CaseView {
   const p = caseEntity.payload;
+  const clock = isCaseClock(caseEntity, candidate) ? candidate : null;
   const researcher = caseEntity.creator;
   const responder = p.responder;
   const watchers = p.watchers.map((w) => w.address);
@@ -135,9 +146,10 @@ export function deriveCase({ caseEntity, related, clock, head }: DeriveInput): C
   const unrecordedExtension = live && clockExpiry > expectedExpiry;
 
   // Pass 2: receipts and reveals, judged against the deadline the records support.
-  const receipts = { valid: 0, premature: [] as Address[], foreign: [] as Address[], withdrawn: 0 };
+  const receipts = { valid: 0, premature: [] as Address[], foreign: [] as Address[], withdrawn: 0, conflicting: [] as Address[] };
   const shares: Hex[] = [];
   const counted = new Set<string>();
+  const withdrawnBy = new Set<string>();
   let reveal: OtcEntity<RevealPayload> | undefined;
   let disclosedByResearcher = false;
 
@@ -164,23 +176,32 @@ export function deriveCase({ caseEntity, related, clock, head }: DeriveInput): C
         }
       } else {
         verdicts.set(e.key, { verdict: "verified" });
-        if (rp.outcome === "withdrawn") receipts.withdrawn++;
+        if (rp.outcome === "withdrawn") withdrawnBy.add(e.creator.toLowerCase());
       }
     } else if (e.kind === "reveal") {
       const rv = e as OtcEntity<RevealPayload>;
-      if (rv.payload.by === "researcher") {
-        if (!eqAddr(e.creator, researcher)) {
-          verdicts.set(e.key, { verdict: "ignored", reason: "claims to be the researcher's disclosure but is not" });
-          continue;
-        }
-        disclosedByResearcher = true;
+      if (rv.payload?.by === "researcher" && !eqAddr(e.creator, researcher)) {
+        verdicts.set(e.key, { verdict: "ignored", reason: "claims to be the researcher's disclosure but is not" });
+        continue;
       }
-      // A watcher-side reveal is trusted by recomputation, not by its author: see verifyReveal().
+      // A reveal is trusted by recomputation, never by its author: the key must open this case's
+      // advisory, open its vendor commitment, and bind its responder to the named vendor.
+      const check = typeof rv.payload?.key === "string" ? verifyRevealKey(caseEntity.key, p, rv.payload.key) : null;
+      if (!check || !check.checks.decrypts || !check.checks.commitment || !check.checks.responderBinding) {
+        verdicts.set(e.key, { verdict: "ignored", reason: "its key does not open this case" });
+        continue;
+      }
       verdicts.set(e.key, { verdict: "verified" });
+      if (rv.payload.by === "researcher") disclosedByResearcher = true;
       reveal ??= rv;
     }
   }
 
+  receipts.withdrawn = withdrawnBy.size;
+  receipts.conflicting = watchers.filter((w) => counted.has(w.toLowerCase()) && withdrawnBy.has(w.toLowerCase()));
+
+  // Order matters: k verified shares can never be outvoted by a watcher claiming withdrawal, and a
+  // withdrawal needs the same threshold of watchers (or a clock gone before its deadline) to stand.
   let status: CaseStatus;
   if (live) {
     status = fixedAt !== undefined ? "fixed" : ackedAt !== undefined ? "acknowledged" : "sealed";
@@ -188,10 +209,10 @@ export function deriveCase({ caseEntity, related, clock, head }: DeriveInput): C
     status = "disclosed";
   } else if (reveal) {
     status = "revealed";
-  } else if (receipts.withdrawn > 0 || head < expectedExpiry) {
-    status = "withdrawn";
   } else if (receipts.valid >= p.k) {
     status = "revealable";
+  } else if (head < expectedExpiry || receipts.withdrawn >= p.k) {
+    status = "withdrawn";
   } else {
     status = "lapsed";
   }
@@ -230,5 +251,6 @@ export function deriveCase({ caseEntity, related, clock, head }: DeriveInput): C
     receipts,
     shares,
     ...(reveal ? { reveal } : {}),
+    revealedEarly: !!reveal && reveal.payload.by === "watchers" && reveal.createdAt < expectedExpiry,
   };
 }

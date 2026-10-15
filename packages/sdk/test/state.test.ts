@@ -131,11 +131,32 @@ describe("deriveCase", () => {
     expect(v.receipts.premature).toEqual([W1]);
   });
 
-  it("a clock deleted before the deadline is withdrawn unless the researcher disclosed", () => {
+  it("a clock gone before its deadline reads as withdrawn; a reveal whose key opens nothing is ignored", () => {
     const wd = ent("receipt", W1, 600, { v: 1, outcome: "withdrawn", observed: { head: "600", expiresAt: "1000" } }, { ...on, outcome: "withdrawn" });
     expect(deriveCase({ caseEntity: theCase, related: [wd], clock: null, head: 700n }).status).toBe("withdrawn");
-    const rev = ent("reveal", R, 590, { v: 1, key: "0x00", by: "researcher" }, { ...on, by: "researcher" });
-    expect(deriveCase({ caseEntity: theCase, related: [wd, rev], clock: null, head: 700n }).status).toBe("disclosed");
+    const bogus = ent("reveal", X, 590, { v: 1, key: `0x${"00".repeat(32)}`, by: "watchers" }, { ...on, by: "watchers" });
+    const v = deriveCase({ caseEntity: theCase, related: [wd, bogus], clock: null, head: 700n });
+    expect(v.status).toBe("withdrawn");
+    expect(v.reveal).toBeUndefined();
+    expect(v.timeline.find((t) => t.key === bogus.key)?.verdict).toBe("ignored");
+  });
+
+  it("one watcher claiming withdrawal cannot outvote k lapse receipts", () => {
+    const lapsed = (w: Address, at: number, share: Hex) =>
+      ent("receipt", w, at, { v: 1, outcome: "lapsed", share, observed: { head: String(at), expiresAt: "1000" } }, { ...on, outcome: "lapsed" });
+    const liar = ent("receipt", W2, 1001, { v: 1, outcome: "withdrawn", observed: { head: "1001", expiresAt: "1000" } }, { ...on, outcome: "withdrawn" });
+    const v = deriveCase({ caseEntity: theCase, related: [lapsed(W1, 1002, "0x01"), liar, lapsed(W3, 1003, "0x03")], clock: null, head: 1100n });
+    expect(v.status).toBe("revealable");
+    expect(v.receipts.withdrawn).toBe(1);
+  });
+
+  it("a forged clock that points at the case is not the case's clock", () => {
+    const forged = { ...ent("clock", X, 150, {}, on), owner: X, expiresAt: 999_999n };
+    const v = deriveCase({ caseEntity: theCase, related: [], clock: forged, head: 1200n });
+    expect(v.clock.live).toBe(false);
+    expect(v.status).toBe("lapsed");
+    const wrongKey = { ...ent("clock", R, 150, {}, on), owner: R, expiresAt: 999_999n };
+    expect(deriveCase({ caseEntity: theCase, related: [], clock: wrongKey, head: 1200n }).clock.live).toBe(false);
   });
 
   it("the timeline is chronological and starts with the filing", () => {

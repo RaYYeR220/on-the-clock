@@ -8,7 +8,7 @@ import { APP, type Kind } from "./constants.js";
 import { decodeEntity } from "./codec.js";
 import type { StealthKeys } from "./crypto/stealth.js";
 import { openForVendor, verifyRevealKey, reconstruct, type RevealResult, type VendorMatch } from "./seal.js";
-import { deriveCase, type CaseView } from "./state.js";
+import { deriveCase, isCaseClock, type CaseView } from "./state.js";
 import type { CasePayload, InboxPayload, OtcEntity, RevealPayload, WatcherPayload } from "./types.js";
 
 export const app = () => eq("app", str(APP));
@@ -70,8 +70,10 @@ export async function loadCase(pub: PublicArkivClient, caseKey: Hex): Promise<Ca
   ]);
   const caseEntity = all.find((e) => e.kind === "case" && e.key.toLowerCase() === caseKey.toLowerCase()) as OtcEntity<CasePayload> | undefined;
   if (!caseEntity) return null;
-  const clock = all.find((e) => e.kind === "clock") ?? null;
-  const related = all.filter((e) => e !== caseEntity && e.kind !== "clock");
+  // The clock is the entity the case file committed to, by the same author. Anything else that
+  // calls itself a clock for this case is noise someone else wrote.
+  const clock = all.find((e) => isCaseClock(caseEntity, e)) ?? null;
+  const related = all.filter((e) => e !== caseEntity && e !== clock);
   return { view: deriveCase({ caseEntity, related, clock, head }), caseEntity, related, clock, head };
 }
 
@@ -98,8 +100,8 @@ export async function loadBoard(pub: PublicArkivClient): Promise<Board> {
     if (e.kind !== "case") continue;
     const caseEntity = e as OtcEntity<CasePayload>;
     const rel = byCase.get(e.key.toLowerCase()) ?? [];
-    const clock = rel.find((r) => r.kind === "clock") ?? null;
-    const related = rel.filter((r) => r.kind !== "clock");
+    const clock = rel.find((r) => isCaseClock(caseEntity, r)) ?? null;
+    const related = rel.filter((r) => r !== clock);
     cases.push({ view: deriveCase({ caseEntity, related, clock, head }), caseEntity, related, clock, head });
   }
   return {

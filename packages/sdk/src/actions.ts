@@ -150,8 +150,18 @@ export async function fileCase(wallet: WalletArkivClient, pub: PublicArkivClient
 
 // ---------- custodian: extension, handoff, disclosure ----------
 
-function triggerKeysOf(bundle: CaseBundle): Hex[] {
-  return bundle.related.filter((e) => e.kind === "trigger").map((e) => e.key);
+/** The case's own triggers: written by the researcher, aimed at the case's clock. Strangers' entities are never touched. */
+export function triggerKeysOf(bundle: CaseBundle): Hex[] {
+  const { caseEntity } = bundle;
+  const clock = caseEntity.payload.clock.toLowerCase();
+  return bundle.related
+    .filter(
+      (e) =>
+        e.kind === "trigger" &&
+        e.creator.toLowerCase() === caseEntity.creator.toLowerCase() &&
+        String(e.attrs.target).toLowerCase() === clock,
+    )
+    .map((e) => e.key);
 }
 
 /**

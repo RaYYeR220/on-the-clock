@@ -15,7 +15,7 @@ import { LIFETIME, type Outcome } from "./constants.js";
 import { publicKeyOf } from "./crypto/box.js";
 import { app, fetchAll, getOne, kindIs, listTriggersFor } from "./read.js";
 import { openShare, reconstruct, verifyRevealKey } from "./seal.js";
-import { deriveCase } from "./state.js";
+import { deriveCase, isCaseClock } from "./state.js";
 import type { CasePayload, OtcEntity, ReceiptPayload, TriggerPayload, WatcherPayload } from "./types.js";
 
 export const ARKIV_ADDRESS: Address = "0x4400000000000000000000000000000000000044";
@@ -29,6 +29,8 @@ export interface Job {
   clockKey: Hex;
   triggerKey: Hex;
   share: Hex;
+  /** The deadline written into the case file at filing. Nothing is released before it, whatever else says. */
+  filedDeadline: bigint;
   expiresAt: bigint;
   state: JobState;
   deletedAt?: bigint;
@@ -54,7 +56,10 @@ export interface WatcherOptions {
 export class Watcher {
   readonly address: Address;
   readonly pubkey: Hex;
+  /** One job per case, keyed by case key. */
   readonly jobs = new Map<string, Job>();
+  private readonly byClock = new Map<string, string>();
+  private readonly rejected = new Set<string>();
   leaseKey: Hex | null = null;
   lastHead = 0n;
   lastTickAt = 0;
@@ -130,34 +135,52 @@ export class Watcher {
     if (added) this.log("jobs added", { added, total: this.jobs.size });
   }
 
+  /**
+   * A trigger is only a job if the case file vouches for it: same author as the case, aimed at the
+   * clock the case committed to, and naming this watcher's key. Anyone can write an entity that
+   * looks like a trigger; only the researcher's own, filed in the case's batch, passes.
+   */
   private async addTrigger(t: OtcEntity): Promise<boolean> {
-    const clockKey = String(t.attrs.target).toLowerCase() as Hex;
-    if (this.jobs.has(clockKey)) return false;
-    const caseKey = String(t.attrs.case) as Hex;
+    if (this.rejected.has(t.key.toLowerCase())) return false;
+    const caseKey = String(t.attrs.case).toLowerCase() as Hex;
+    if (this.jobs.has(caseKey)) return false;
+    const reject = (reason: string) => {
+      this.rejected.add(t.key.toLowerCase());
+      this.log("trigger rejected", { trigger: t.key, reason });
+      return false;
+    };
+    const caseEntity = await getOne<CasePayload>(this.o.pub, caseKey);
+    if (!caseEntity || caseEntity.kind !== "case") return reject("no case file behind it");
+    const p = caseEntity.payload;
+    if (t.creator.toLowerCase() !== caseEntity.creator.toLowerCase()) return reject("not written by the case's researcher");
+    const clockKey = p.clock.toLowerCase() as Hex;
+    if (String(t.attrs.target).toLowerCase() !== clockKey) return reject("aimed at a different clock than the case file names");
+    const me = p.watchers.find((w) => w.address.toLowerCase() === this.address.toLowerCase());
+    if (!me || me.pubkey.toLowerCase() !== this.pubkey.toLowerCase()) return reject("the case file does not name this watcher's key");
     let share: Hex;
     try {
-      share = openShare(caseKey, t.payload as TriggerPayload, this.address, this.o.encryptionKey);
+      share = openShare(caseKey, clockKey, t.payload as TriggerPayload, this.address, this.o.encryptionKey);
     } catch {
-      this.log("trigger does not open with our key", { trigger: t.key });
-      return false;
+      return reject("share does not open for this case, clock and watcher");
     }
-    const job: Job = { caseKey, clockKey, triggerKey: t.key, share, expiresAt: 0n, state: "armed" };
+    const job: Job = { caseKey, clockKey, triggerKey: t.key, share, filedDeadline: BigInt(p.deadlineBlock), expiresAt: BigInt(p.deadlineBlock), state: "armed" };
     const done = await this.myReceipt(caseKey);
     if (done) {
       job.state = "done";
       job.outcome = (done.payload as ReceiptPayload).outcome;
-      job.receiptTx = undefined;
     } else {
       const clock = await getOne(this.o.pub, clockKey);
-      if (clock) job.expiresAt = clock.expiresAt;
-      else {
-        const c = await getOne<CasePayload>(this.o.pub, caseKey);
-        job.expiresAt = c ? BigInt(c.payload.deadlineBlock) : 0n;
-        job.state = "due";
-      }
+      if (isCaseClock(caseEntity, clock)) job.expiresAt = clock.expiresAt;
+      else job.state = "due";
     }
-    this.jobs.set(clockKey, job);
+    this.jobs.set(caseKey, job);
+    this.byClock.set(clockKey, caseKey);
     return true;
+  }
+
+  private jobForClock(clockKey: Hex): Job | undefined {
+    const c = this.byClock.get(clockKey.toLowerCase());
+    return c ? this.jobs.get(c) : undefined;
   }
 
   private async myReceipt(caseKey: Hex) {
@@ -171,21 +194,21 @@ export class Watcher {
     if (!this.o.live) return;
     this.unwatch = this.o.live.watchEntityEvents({
       onExpiryExtended: (ev) => {
-        const job = this.jobs.get(ev.entityKey.toLowerCase());
+        const job = this.jobForClock(ev.entityKey);
         if (!job || job.state === "done") return;
         job.expiresAt = ev.expiresAt;
         job.state = "armed";
         this.log("clock extended, rescheduled", { clock: ev.entityKey, expiresAt: ev.expiresAt.toString(), block: ev.blockNumber.toString() });
       },
       onEntityDeleted: (ev) => {
-        const job = this.jobs.get(ev.entityKey.toLowerCase());
+        const job = this.jobForClock(ev.entityKey);
         if (!job || job.state === "done") return;
         job.state = "deleted";
         job.deletedAt = ev.blockNumber;
         this.log("clock deleted before its deadline", { clock: ev.entityKey, block: ev.blockNumber.toString() });
       },
       onOwnershipTransferred: (ev) => {
-        if (this.jobs.has(ev.entityKey.toLowerCase())) {
+        if (this.jobForClock(ev.entityKey)) {
           this.log("clock changed hands", { clock: ev.entityKey, to: ev.newOwner });
         }
       },
@@ -213,7 +236,7 @@ export class Watcher {
       this.lastHead = head;
       this.lastTickAt = Date.now();
       for (const job of this.jobs.values()) {
-        if (job.state === "armed" && job.expiresAt > 0n && head >= job.expiresAt) job.state = "due";
+        if (job.state === "armed" && head >= job.expiresAt && head >= job.filedDeadline) job.state = "due";
         if (job.state === "due") await this.handleDue(job, head);
         else if (job.state === "deleted" && job.deletedAt !== undefined && head > job.deletedAt) await this.handleDeleted(job, head);
       }
@@ -225,6 +248,10 @@ export class Watcher {
   /** The clock has passed its expiry. Prove it lapsed on its own before releasing anything. */
   private async handleDue(job: Job, head: bigint) {
     const { pub } = this.o;
+    if (head < job.filedDeadline || head < job.expiresAt) {
+      job.state = "armed";
+      return;
+    }
     const clock = await getOne(pub, job.clockKey);
     if (clock) {
       // Extended in the meantime (or the node has not caught up): never release early.
@@ -233,7 +260,9 @@ export class Watcher {
       return;
     }
     const aliveAt = job.expiresAt - 1n;
-    const before = await fetchAll(pub, [app(), eq("$key", key(job.clockKey))], { atBlock: aliveAt });
+    const before = (await fetchAll(pub, [app(), eq("$key", key(job.clockKey))], { atBlock: aliveAt })).filter(
+      (e) => e.kind === "clock" && String(e.attrs.case).toLowerCase() === job.caseKey.toLowerCase(),
+    );
     const deletions = await pub.getLogs({
       address: ARKIV_ADDRESS,
       event: ENTITY_DELETED,

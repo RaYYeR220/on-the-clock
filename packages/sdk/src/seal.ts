@@ -60,8 +60,12 @@ export interface SealedCase {
   advisoryKey: Hex;
 }
 
-export function shareAad(caseKey: Hex, watcher: Address): Uint8Array {
-  return concat(hexToBytes(caseKey), hexToBytes(watcher));
+/**
+ * A share is bound to its case, its clock and its watcher. Copying the ciphertext into a trigger that
+ * points at a different clock (one that lapses sooner) makes it undecryptable.
+ */
+export function shareAad(caseKey: Hex, clockKey: Hex, watcher: Address): Uint8Array {
+  return concat(hexToBytes(caseKey), hexToBytes(clockKey), hexToBytes(watcher));
 }
 
 export function vendorCommitment(inboxKey: Hex, salt: Hex): Hex {
@@ -100,7 +104,7 @@ export async function sealCase(input: SealCaseInput): Promise<SealedCase> {
     watcher,
     payload: {
       v: 1 as const,
-      box: eciesEncrypt(watcher.pubkey, hexToBytes(shares[i]!), shareAad(caseKey, watcher.address)),
+      box: eciesEncrypt(watcher.pubkey, hexToBytes(shares[i]!), shareAad(caseKey, input.clockKey, watcher.address)),
     },
   }));
 
@@ -162,8 +166,8 @@ export function openNote(caseKey: Hex, box: EciesBox, selfKey: Hex): string {
 
 // ---------- watcher side ----------
 
-export function openShare(caseKey: Hex, trigger: TriggerPayload, watcher: Address, watcherKey: Hex): Hex {
-  return bytesToHex(eciesDecrypt(watcherKey, trigger.box, shareAad(caseKey, watcher)));
+export function openShare(caseKey: Hex, clockKey: Hex, trigger: TriggerPayload, watcher: Address, watcherKey: Hex): Hex {
+  return bytesToHex(eciesDecrypt(watcherKey, trigger.box, shareAad(caseKey, clockKey, watcher)));
 }
 
 // ---------- reveal ----------

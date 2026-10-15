@@ -14,7 +14,8 @@ import {
   sealNote,
   verifyRevealKey,
 } from "../src/seal.js";
-import type { InboxPayload, WatcherRef } from "../src/types.js";
+import { deriveCase } from "../src/state.js";
+import type { CasePayload, InboxPayload, OtcEntity, WatcherRef } from "../src/types.js";
 
 const enc = new TextEncoder();
 const scalar = (s: string) => deriveScalar(enc.encode(s), "test");
@@ -91,8 +92,10 @@ describe("filing and opening a case", () => {
 describe("lapse and reveal", () => {
   it("each watcher opens only its own share; any two rebuild the advisory key", async () => {
     const sealed = await file();
-    const shares = sealed.triggers.map((t, i) => openShare(caseKey, t.payload, watchers[i]!.address, watcherKeys[i]!));
-    expect(() => openShare(caseKey, sealed.triggers[0]!.payload, watchers[0]!.address, watcherKeys[1]!)).toThrow();
+    const shares = sealed.triggers.map((t, i) => openShare(caseKey, clockKey, t.payload, watchers[i]!.address, watcherKeys[i]!));
+    expect(() => openShare(caseKey, clockKey, sealed.triggers[0]!.payload, watchers[0]!.address, watcherKeys[1]!)).toThrow();
+    // The same ciphertext copied into a trigger aimed at another (sooner) clock does not open.
+    expect(() => openShare(caseKey, `0x${"ef".repeat(32)}`, sealed.triggers[0]!.payload, watchers[0]!.address, watcherKeys[0]!)).toThrow();
     const key = await reconstruct(caseKey, sealed.payload, [shares[0]!, shares[2]!]);
     expect(key).toBe(sealed.advisoryKey);
     expect(await reconstruct(caseKey, sealed.payload, [shares[1]!])).toBeNull();
@@ -100,7 +103,7 @@ describe("lapse and reveal", () => {
 
   it("a corrupted share from a misbehaving watcher cannot block the reveal", async () => {
     const sealed = await file();
-    const shares = sealed.triggers.map((t, i) => openShare(caseKey, t.payload, watchers[i]!.address, watcherKeys[i]!));
+    const shares = sealed.triggers.map((t, i) => openShare(caseKey, clockKey, t.payload, watchers[i]!.address, watcherKeys[i]!));
     const bad = `${shares[0]!.slice(0, -2)}${shares[0]!.endsWith("00") ? "01" : "00"}` as Hex;
     expect(await reconstruct(caseKey, sealed.payload, [bad, shares[1]!, shares[2]!])).toBe(sealed.advisoryKey);
   });
@@ -127,5 +130,34 @@ describe("lapse and reveal", () => {
     const r = verifyRevealKey(caseKey, sealed.payload, sealed.advisoryKey, impostorInbox);
     expect(r.ok).toBe(false);
     expect(r.checks.inbox).toBe(false);
+  });
+});
+
+describe("reveals inside the case state", () => {
+  const asEntity = <P>(kind: OtcEntity["kind"], creator: Address, createdAt: bigint, payload: P, attrs: Record<string, string> = {}, key = `0x${Math.random().toString(16).slice(2).padEnd(64, "0")}` as Hex): OtcEntity<P> => ({
+    key, kind, creator, owner: creator, createdAt, expiresAt: createdAt + 10_000n, readonly: true, permissionlessExtension: true,
+    attrs: { app: "onclock", kind, case: caseKey, ...attrs }, payload, payloadBytes: 1,
+  });
+  const researcher = privateKeyToAccount(researcherSelfKey).address;
+
+  it("a verified watcher reveal makes the case revealed; a bogus one cannot block it", async () => {
+    const sealed = await file();
+    const caseEntity = asEntity<CasePayload>("case", researcher, 100n, sealed.payload, {}, caseKey);
+    const bogus = asEntity("reveal", "0x9999999999999999999999999999999999999999", 1001n, { v: 1, key: `0x${"ab".repeat(32)}`, by: "watchers" });
+    const real = asEntity("reveal", watchers[0]!.address, 1002n, { v: 1, key: sealed.advisoryKey, by: "watchers" });
+    const before = deriveCase({ caseEntity, related: [bogus], clock: null, head: 1100n });
+    expect(before.status).toBe("lapsed");
+    const after = deriveCase({ caseEntity, related: [bogus, real], clock: null, head: 1100n });
+    expect(after.status).toBe("revealed");
+    expect(after.reveal?.key).toBe(real.key);
+  });
+
+  it("early disclosure counts only from the researcher, and only with the real key", async () => {
+    const sealed = await file();
+    const caseEntity = asEntity<CasePayload>("case", researcher, 100n, sealed.payload, {}, caseKey);
+    const impostor = asEntity("reveal", watchers[1]!.address, 500n, { v: 1, key: sealed.advisoryKey, by: "researcher" });
+    expect(deriveCase({ caseEntity, related: [impostor], clock: null, head: 600n }).status).toBe("withdrawn");
+    const mine = asEntity("reveal", researcher, 500n, { v: 1, key: sealed.advisoryKey, by: "researcher" });
+    expect(deriveCase({ caseEntity, related: [mine], clock: null, head: 600n }).status).toBe("disclosed");
   });
 });
