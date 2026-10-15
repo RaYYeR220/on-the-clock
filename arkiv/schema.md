@@ -274,9 +274,11 @@ await client
 await client.select("*").where(eq("app", str("onclock")), eq("kind", str("watcher"))).limit(200).fetch();
 
 // 5. A coordinator's worklist: the clocks it owns ($owner), sorted by expiry client-side.
+//    Shown on the researcher desk as "In your custody", each clock checked against its case file.
 await client.select("*").where(eq("app", str("onclock")), eq("kind", str("clock"))).ownedBy(coordinator).limit(200).fetch();
 
 // 6. Clocks running out within a window: $expiresAt is a queryable u64 block height.
+//    The board's "publish within 24 h" count (head + 43 200 blocks).
 await client
   .select("*")
   .where(eq("app", str("onclock")), eq("kind", str("clock")), lte("$expiresAt", u64(head + windowBlocks)))

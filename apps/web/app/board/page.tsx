@@ -1,14 +1,36 @@
 "use client";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import type { CaseBundle, CaseStatus } from "on-the-clock-sdk";
+import { useEffect, useMemo, useState } from "react";
+import { BLOCK_SECONDS, listExpiringWithin, type CaseBundle, type CaseStatus } from "on-the-clock-sdk";
 import { STATUS, STATUS_ORDER, blocks, sevLabel } from "@/components/CaseText";
-import { queryUrl } from "@/lib/arkiv";
+import { queryUrl, readClient } from "@/lib/arkiv";
 import { useBoard, useHead } from "@/lib/hooks";
 import { BoardRow } from "./BoardRow";
 import s from "./board.module.css";
 
 const BOARD_QUERY = `app = "onclock"`;
+const DAY_BLOCKS = BigInt(Math.ceil(86_400 / BLOCK_SECONDS));
+
+/**
+ * How many clocks publish themselves in the next 24 hours: one range query on `$expiresAt`, counted
+ * only for clocks that belong to a case on the board (anyone can write an entity called a clock).
+ */
+function useSoon(board: { cases: CaseBundle[] } | null) {
+  const [soon, setSoon] = useState<number | null>(null);
+  useEffect(() => {
+    if (!board) return;
+    const ours = new Set(board.cases.map((c) => c.view.clock.key.toLowerCase()));
+    let live = true;
+    listExpiringWithin(readClient(), DAY_BLOCKS).then(
+      (list) => live && setSoon(list.filter((c) => ours.has(c.key.toLowerCase())).length),
+      () => live && setSoon(null),
+    );
+    return () => {
+      live = false;
+    };
+  }, [board]);
+  return soon;
+}
 
 /** Running clocks first, soonest deadline first; then closed cases, most recent deadline first. */
 function byDeadline(a: CaseBundle, b: CaseBundle) {
@@ -23,6 +45,7 @@ function byDeadline(a: CaseBundle, b: CaseBundle) {
 export default function BoardPage() {
   const { head, at } = useHead();
   const { board, error, reload } = useBoard();
+  const soon = useSoon(board);
   const [status, setStatus] = useState<CaseStatus | "all">("all");
   const [sev, setSev] = useState<number | "all">("all");
 
@@ -53,6 +76,10 @@ export default function BoardPage() {
         <div>
           <dt>clocks running</dt>
           <dd className="mono">{board ? running : "…"}</dd>
+        </div>
+        <div title='app = "onclock" && kind = "clock" && $expiresAt <= head + 43200'>
+          <dt>publish within 24 h</dt>
+          <dd className="mono">{soon ?? "…"}</dd>
         </div>
         <div>
           <dt>revealed</dt>
@@ -164,7 +191,8 @@ export default function BoardPage() {
       )}
 
       <p className={`note ${s.source}`}>
-        Source: one query, <code className="mono">{BOARD_QUERY}</code>, walked page by page and grouped by case in this browser.{" "}
+        Source: one query, <code className="mono">{BOARD_QUERY}</code>, walked page by page and grouped by case in this browser; the 24-hour
+        count is a range query on the clocks&apos; <code className="mono">$expiresAt</code>.{" "}
         <a className="ext" href={queryUrl(BOARD_QUERY)} target="_blank" rel="noreferrer">
           Run it in the Data Explorer
         </a>

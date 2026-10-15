@@ -2,22 +2,55 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { Hex } from "viem";
-import { app, fetchAll, kindIs, type CasePayload, type OtcEntity } from "on-the-clock-sdk";
+import { app, fetchAll, getOne, isCaseClock, kindIs, listClocksHeldBy, type CasePayload, type OtcEntity } from "on-the-clock-sdk";
 import { DeskCase } from "@/components/DeskCase";
 import { ErrorNote, Working } from "@/components/DemoParts";
 import { WalletCard } from "@/components/WalletCard";
 import { readClient } from "@/lib/arkiv";
 import { roleKeys } from "@/lib/burner";
-import { useHead } from "@/lib/hooks";
+import { human, useHead, useSecondsUntil } from "@/lib/hooks";
 import { plain, type Plain } from "@/lib/flow-common";
 import { useBurner } from "@/lib/flow-wallet";
 import s from "./desk.module.css";
+
+type Held = { clock: OtcEntity; caseKey: Hex };
+
+/**
+ * Clocks this wallet holds for cases it did not file (a coordinator's custody), found by owner. Anyone
+ * can transfer an entity called a clock to anyone, so each one is checked against its case file.
+ */
+async function heldClocks(owner: Hex, own: Set<string>): Promise<Held[]> {
+  const pub = readClient();
+  const clocks = (await listClocksHeldBy(pub, owner)).filter((c) => !own.has(String(c.attrs.case ?? "").toLowerCase()));
+  const checked = await Promise.all(
+    clocks.map(async (clock) => {
+      const caseKey = String(clock.attrs.case ?? "") as Hex;
+      if (!/^0x[0-9a-fA-F]{64}$/.test(caseKey)) return null;
+      const caseEntity = await getOne<CasePayload>(pub, caseKey);
+      return caseEntity && isCaseClock(caseEntity, clock) ? { clock, caseKey } : null;
+    }),
+  );
+  return checked.filter((h): h is Held => h !== null);
+}
+
+function HeldRow({ held, head, at }: { held: Held; head: bigint | null; at: number }) {
+  const secs = useSecondsUntil(held.clock.expiresAt, head, at);
+  return (
+    <li className={s.heldRow}>
+      <Link className="mono link" href={`/case/${held.caseKey}`}>
+        {held.caseKey.slice(0, 10)}…{held.caseKey.slice(-4)}
+      </Link>
+      <span className="mono soft">{secs === null ? "…" : secs > 0 ? `${human(secs)} left` : "lapsing"}</span>
+    </li>
+  );
+}
 
 export default function DeskPage() {
   const account = useBurner("researcher");
   const { head, at } = useHead();
   const [selfKey, setSelfKey] = useState<Hex | null>(null);
   const [cases, setCases] = useState<OtcEntity<CasePayload>[] | null>(null);
+  const [held, setHeld] = useState<Held[]>([]);
   const [error, setError] = useState<Plain | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -28,6 +61,7 @@ export default function DeskPage() {
     try {
       const list = await fetchAll<CasePayload>(readClient(), [app(), kindIs("case")], { createdBy: account.address });
       setCases(list.sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1)));
+      setHeld(await heldClocks(account.address, new Set(list.map((c) => c.key.toLowerCase()))));
     } catch (e) {
       setError(plain(e));
     } finally {
@@ -99,6 +133,25 @@ export default function DeskPage() {
           </div>
         )}
       </section>
+
+      {held.length > 0 && (
+        <section className={s.cases}>
+          <p className="eyebrow">
+            <i />
+            In your custody
+          </p>
+          <p className={`note ${s.heldNote}`}>
+            Clocks handed to this wallet for cases it did not file, found by owner:{" "}
+            <code className="mono">kind = &quot;clock&quot;</code> owned by this wallet, each checked against its case file. As custodian, this wallet
+            is the only one that can extend them.
+          </p>
+          <ul className={s.held}>
+            {held.map((h) => (
+              <HeldRow key={h.clock.key} held={h} head={head} at={at} />
+            ))}
+          </ul>
+        </section>
+      )}
     </main>
   );
 }
