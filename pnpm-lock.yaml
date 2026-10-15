@@ -75,6 +75,13 @@ importers:
       viem:
         specifier: ^2.57.4
         version: 2.57.4(typescript@7.0.2)
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.4
+        version: 26.6.4
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
 
 packages:
 

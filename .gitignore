@@ -37,3 +37,5 @@ video/
 Thumbs.db
 *.log
 .vercel
+bundle/
+.seed-secrets.json

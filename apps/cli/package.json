@@ -14,7 +14,8 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"cli: covered by the sdk suite\""
+    "test": "echo \"cli: covered by the sdk suite\"",
+    "bundle": "tsup --config tsup.bundle.config.ts"
   },
   "keywords": [
     "arkiv",

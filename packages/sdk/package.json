@@ -20,7 +20,8 @@
   "scripts": {
     "build": "tsup && tsc -p tsconfig.build.json",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:js": "tsup"
   },
   "keywords": [
     "arkiv",
