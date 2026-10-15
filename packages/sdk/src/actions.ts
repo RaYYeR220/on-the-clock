@@ -50,10 +50,15 @@ export async function createInbox(wallet: WalletArkivClient, input: InboxInput) 
   });
 }
 
-/** The inbox is a lease: it stays alive while the vendor keeps showing up. */
+/**
+ * The inbox is a lease: it stays alive while the vendor keeps showing up. Returns null when the lease
+ * already runs past a fresh 30 days (a filing extends it), since a shorter target would revert.
+ */
 export async function renewInbox(wallet: WalletArkivClient, pub: PublicArkivClient, inboxKey: Hex) {
-  const head = await pub.getBlockNumber();
-  return wallet.extendEntity({ entityKey: inboxKey, expires: ExpirationTime.atBlock(head + blocks(LIFETIME.inboxLease)) });
+  const [head, current] = await Promise.all([pub.getBlockNumber(), pub.getEntity(inboxKey)]);
+  const target = head + blocks(LIFETIME.inboxLease);
+  if (BigInt(current.expiresAt) >= target) return null;
+  return wallet.extendEntity({ entityKey: inboxKey, expires: ExpirationTime.atBlock(target) });
 }
 
 // ---------- researcher: filing ----------
@@ -73,6 +78,8 @@ export interface FiledCase {
   deadlineBlock: bigint;
   txHash: Hex;
   postageTx?: Hex;
+  /** Set when the filing landed but the follow-up postage transfer failed; the case is still valid. */
+  postageError?: string;
 }
 
 /**
@@ -142,9 +149,15 @@ export async function fileCase(wallet: WalletArkivClient, pub: PublicArkivClient
     ],
   });
 
+  // The filing has landed; a failed postage transfer must not lose the case key or K.
   let postageTx: Hex | undefined;
+  let postageError: string | undefined;
   if (input.postage !== false) {
-    postageTx = await wallet.sendTransaction({ to: sealed.responder, value: RESPONDER_POSTAGE, account: wallet.account!, chain: wallet.chain });
+    try {
+      postageTx = await sendPostage(wallet, sealed.responder);
+    } catch (e) {
+      postageError = e instanceof Error ? (e.message.split("\n")[0] ?? e.message) : String(e);
+    }
   }
   return {
     sealed,
@@ -154,7 +167,13 @@ export async function fileCase(wallet: WalletArkivClient, pub: PublicArkivClient
     deadlineBlock,
     txHash: res.txHash,
     ...(postageTx ? { postageTx } : {}),
+    ...(postageError ? { postageError } : {}),
   };
+}
+
+/** Pays a case's one-time responder its gas. Anyone can send it; the researcher normally does. */
+export async function sendPostage(wallet: WalletArkivClient, responder: Address, value = RESPONDER_POSTAGE): Promise<Hex> {
+  return wallet.sendTransaction({ to: responder, value, account: wallet.account!, chain: wallet.chain });
 }
 
 // ---------- custodian: extension, handoff, disclosure ----------

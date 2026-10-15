@@ -204,8 +204,8 @@ function dedupeByCreator<T extends OtcEntity>(list: T[]): T[] {
 
 // ---------- inboxes, watchers ----------
 
-export async function listInboxes(pub: PublicArkivClient): Promise<OtcEntity<InboxPayload>[]> {
-  return fetchAll<InboxPayload>(pub, [app(), kindIs("inbox")]);
+export async function listInboxes(pub: PublicArkivClient, vendor?: Address): Promise<OtcEntity<InboxPayload>[]> {
+  return fetchAll<InboxPayload>(pub, [app(), kindIs("inbox")], vendor ? { createdBy: vendor } : {});
 }
 
 /** A watcher is alive exactly while its lease entity exists, so "alive" is just "present". */

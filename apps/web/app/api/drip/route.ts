@@ -37,12 +37,11 @@ export async function POST(req: Request) {
     const pub = createPublicClient({ chain: tiramisu, transport: rpc });
     const have = await pub.getBalance({ address });
     if (have >= ENOUGH || served.has(who)) return NextResponse.json({ skipped: true, balance: formatEther(have) });
-    if (!perIp.take(clientIp(req))) return NextResponse.json({ error: "this network has asked for gas too often; try again in an hour" }, { status: 429 });
-    if (!global.take("all")) return NextResponse.json({ error: "the demo faucet is busy; try again later or use hub.arkiv.network/faucet" }, { status: 429 });
-
     const account = privateKeyToAccount(key);
     const reserve = await pub.getBalance({ address: account.address });
     if (reserve < FLOOR) return NextResponse.json({ error: "the demo faucet is empty; use hub.arkiv.network/faucet" }, { status: 503 });
+    if (!perIp.take(clientIp(req))) return NextResponse.json({ error: "this network has asked for gas too often; try again in an hour" }, { status: 429 });
+    if (!global.take("all")) return NextResponse.json({ error: "the demo faucet is busy; try again later or use hub.arkiv.network/faucet" }, { status: 429 });
 
     served.add(who);
     const wallet = createWalletClient({ chain: tiramisu, transport: rpc, account });
