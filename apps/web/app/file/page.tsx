@@ -277,6 +277,13 @@ export default function FilePage() {
                     </li>
                   ))}
                 </ul>
+                {watchers.unvetted.length > 0 && (
+                  <p className="note">
+                    {watchers.unvetted.length} other watcher lease{watchers.unvetted.length > 1 ? "s are" : " is"} live on Tiramisu from addresses this
+                    site does not vouch for. Anyone can take out a lease, so they are not given a share: a set built from every live lease would let
+                    one party register enough watchers to open an embargo early.
+                  </p>
+                )}
                 {watchers.enough ? (
                   <p className={s.threshold}>
                     Any <b>{watchers.k}</b> of these <b>{watchers.n}</b> release the key at the deadline. Fewer than {watchers.k} cannot.
