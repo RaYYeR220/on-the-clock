@@ -14,34 +14,36 @@ export function clientIp(req: Request): string {
 
 export class Window {
   private readonly hits = new Map<string, number[]>();
+  private lastPrune = 0;
+  // Memory bound. When full, unknown keys are refused rather than evicting anyone else's window, so a
+  // flood of distinct addresses can never reset a budget. It fails closed.
+  private static readonly CAP = 50_000;
+
   constructor(
     private readonly max: number,
     private readonly ms: number,
   ) {}
 
-  /** Records a hit and returns false when the key is over its budget. */
+  /** Records a hit and returns false when the key is over its budget (or the table is full). */
   take(key: string): boolean {
     const now = Date.now();
-    const recent = (this.hits.get(key) ?? []).filter((t) => now - t < this.ms);
+    if (now - this.lastPrune > 10_000) this.prune(now);
+    const known = this.hits.get(key);
+    if (!known && this.hits.size >= Window.CAP) return false;
+    const recent = (known ?? []).filter((t) => now - t < this.ms);
     if (recent.length >= this.max) {
       this.hits.set(key, recent);
       return false;
     }
     recent.push(now);
-    this.hits.delete(key);
     this.hits.set(key, recent);
-    if (this.hits.size > Window.SOFT_CAP) this.prune(now);
     return true;
   }
 
-  // Memory bound. Expired windows go first; only past a hard cap (a flood of distinct addresses far
-  // beyond any real audience) are the least recently used live windows dropped.
-  private static readonly SOFT_CAP = 20_000;
-  private static readonly HARD_CAP = 100_000;
-
+  /** Drops windows with no hit inside the period. Runs at most every 10 s. */
   private prune(now: number) {
+    this.lastPrune = now;
     for (const [k, ts] of this.hits) if (!ts.some((t) => now - t < this.ms)) this.hits.delete(k);
-    while (this.hits.size > Window.HARD_CAP) this.hits.delete(this.hits.keys().next().value as string);
   }
 }
 
