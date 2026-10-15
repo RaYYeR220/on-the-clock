@@ -15,7 +15,7 @@ Fields mirror the `reported-issues` bug form: surface · version · steps · exp
 
 ## Contents
 
-1. [What shaped our architecture](#1-what-shaped-our-architecture) — four properties of Arkiv that changed the design, and how we built around them
+1. [What shaped our architecture](#1-what-shaped-our-architecture): four properties of Arkiv that changed the design, and how we built around them
 2. [SDK](#2-sdk)
 3. [RPC and gateway](#3-rpc-and-gateway)
 4. [Events](#4-events)
