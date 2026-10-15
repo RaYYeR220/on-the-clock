@@ -42,7 +42,7 @@ export interface SealCaseInput {
   advisory: Advisory;
   /** The proof of concept. Only its hash leaves this function. */
   poc: string | Uint8Array;
-  inbox: { key: Hex; creator: Address; payload: InboxPayload };
+  inbox: { key: Hex; creator: Address; payload: InboxPayload; expiresAt?: bigint; permissionlessExtension?: boolean };
   watchers: WatcherRef[];
   k: number;
   researcherSelfKey: Hex;

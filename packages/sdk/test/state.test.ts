@@ -81,14 +81,14 @@ describe("deriveCase", () => {
   });
 
   it("extensions count only when granted by the current custodian chain", () => {
-    const req = ent("extreq", V, 170, { v: 1 }, { ...on, days: 30n });
-    const grant = ent("grant", R, 180, { v: 1, expiresAt: "2000" }, { ...on, days: 30n });
+    const req = ent("extreq", V, 170, { v: 1 }, { ...on, seconds: 2_592_000n });
+    const grant = ent("grant", R, 180, { v: 1, expiresAt: "2000" }, { ...on, seconds: 2_592_000n });
     const handoff = ent("handoff", R, 190, { v: 1 }, { ...on, to: C });
-    const grant2 = ent("grant", C, 200, { v: 1, expiresAt: "3000" }, { ...on, days: 14n });
-    const rogue = ent("grant", V, 210, { v: 1, expiresAt: "9000" }, { ...on, days: 365n });
+    const grant2 = ent("grant", C, 200, { v: 1, expiresAt: "3000" }, { ...on, seconds: 1_209_600n });
+    const rogue = ent("grant", V, 210, { v: 1, expiresAt: "9000" }, { ...on, seconds: 31_536_000n });
     const v = deriveCase({ caseEntity: theCase, related: [req, grant, handoff, grant2, rogue], clock: clock(C, 3000), head: 250n });
     expect(v.extensions.granted).toBe(2);
-    expect(v.extensions.days).toBe(44);
+    expect(v.extensions.seconds).toBe(44 * 86_400);
     expect(v.extensions.requested).toBe(1);
     expect(v.custodian).toBe(C);
     expect(v.timeline.find((t) => t.key === rogue.key)?.verdict).toBe("ignored");
@@ -96,7 +96,7 @@ describe("deriveCase", () => {
 
   it("a grant from the researcher after handing off is no longer authoritative", () => {
     const handoff = ent("handoff", R, 190, { v: 1 }, { ...on, to: C });
-    const late = ent("grant", R, 200, { v: 1, expiresAt: "5000" }, { ...on, days: 60n });
+    const late = ent("grant", R, 200, { v: 1, expiresAt: "5000" }, { ...on, seconds: 5_184_000n });
     const v = deriveCase({ caseEntity: theCase, related: [handoff, late], clock: clock(C), head: 250n });
     expect(v.extensions.granted).toBe(0);
     expect(v.timeline.find((t) => t.key === late.key)?.verdict).toBe("ignored");
@@ -124,7 +124,7 @@ describe("deriveCase", () => {
   });
 
   it("the deadline a receipt is judged against follows granted extensions", () => {
-    const grant = ent("grant", R, 500, { v: 1, expiresAt: "2000" }, { ...on, days: 30n });
+    const grant = ent("grant", R, 500, { v: 1, expiresAt: "2000" }, { ...on, seconds: 2_592_000n });
     const tooEarly = ent("receipt", W1, 1500, { v: 1, outcome: "lapsed", share: "0x01", observed: { head: "1500", expiresAt: "1000" } }, { ...on, outcome: "lapsed" });
     const v = deriveCase({ caseEntity: theCase, related: [grant, tooEarly], clock: null, head: 2100n });
     expect(v.expectedExpiry).toBe(2000n);

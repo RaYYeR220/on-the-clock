@@ -1,0 +1,15 @@
+{
+  "name": "on-the-clock-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "fund": "node --env-file=../.env fund.ts",
+    "e2e": "node --env-file=../.env e2e.ts",
+    "seed": "node --env-file=../.env seed.ts"
+  },
+  "dependencies": {
+    "@arkiv-network/sdk": "0.8.1",
+    "on-the-clock-sdk": "workspace:*",
+    "viem": "^2.57.4"
+  }
+}

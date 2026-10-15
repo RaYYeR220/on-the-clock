@@ -5,7 +5,7 @@
 import type { Address, Hex } from "viem";
 import type { Kind, Outcome } from "./constants.js";
 import { verifyRevealKey } from "./seal.js";
-import type { CasePayload, GrantPayload, OtcEntity, ReceiptPayload, RevealPayload } from "./types.js";
+import type { CasePayload, GrantPayload, InboxPayload, OtcEntity, ReceiptPayload, RevealBundle, RevealPayload } from "./types.js";
 
 export type CaseStatus =
   | "sealed"
@@ -26,7 +26,7 @@ export interface TimelineItem {
   block: bigint;
   verdict: Verdict;
   reason?: string;
-  days?: number;
+  seconds?: number;
   outcome?: Outcome;
   to?: Address;
 }
@@ -51,18 +51,32 @@ export interface CaseView {
   ignored: TimelineItem[];
   ackedAt?: bigint;
   fixedAt?: bigint;
-  extensions: { requested: number; granted: number; days: number };
+  extensions: { requested: number; granted: number; seconds: number };
   receipts: { valid: number; premature: Address[]; foreign: Address[]; withdrawn: number; conflicting: Address[] };
   shares: Hex[];
   reveal?: OtcEntity<RevealPayload>;
   /** A verified watcher-side reveal written before the deadline: evidence that k watchers colluded. */
   revealedEarly: boolean;
+  /**
+   * Whether the vendor the reveal names is the vendor that actually received the case. The name in
+   * the bundle was written by the researcher; it only counts once the named inbox (created by the
+   * named vendor, carrying the meta-address the case was addressed to) is checked.
+   *   verified  - inbox found, creator and meta-address match
+   *   mismatch  - inbox found and does not match: the bundle names the wrong vendor
+   *   unknown   - inbox not available to check (deleted, or not supplied)
+   *   null      - nothing revealed yet
+   */
+  attribution: "verified" | "mismatch" | "unknown" | null;
+  /** Present only when attribution is verified. */
+  vendor?: { name: string; address: Address; inbox: Hex };
 }
 
 export interface DeriveInput {
   caseEntity: OtcEntity<CasePayload>;
   /** Every entity with `case = key(caseEntity)`. Order does not matter. */
   related: OtcEntity[];
+  /** Inboxes available for checking who a reveal names (optional; without them attribution is "unknown"). */
+  inboxes?: OtcEntity<InboxPayload>[];
   /**
    * The live clock, or null once it has lapsed or been deleted. Only the entity whose key the case
    * file committed to, written by the case's researcher, is accepted; anything else is treated as absent.
@@ -80,7 +94,7 @@ export function isCaseClock(caseEntity: OtcEntity<CasePayload>, e: OtcEntity | n
   return !!e && e.kind === "clock" && e.key.toLowerCase() === caseEntity.payload.clock.toLowerCase() && eqAddr(e.creator, caseEntity.creator);
 }
 
-export function deriveCase({ caseEntity, related, clock: candidate, head }: DeriveInput): CaseView {
+export function deriveCase({ caseEntity, related, clock: candidate, head, inboxes }: DeriveInput): CaseView {
   const p = caseEntity.payload;
   const clock = isCaseClock(caseEntity, candidate) ? candidate : null;
   const researcher = caseEntity.creator;
@@ -96,7 +110,7 @@ export function deriveCase({ caseEntity, related, clock: candidate, head }: Deri
   let custodian: Address = researcher;
   let expectedExpiry = BigInt(p.deadlineBlock);
   const verdicts = new Map<Hex, { verdict: Verdict; reason?: string }>();
-  const extensions = { requested: 0, granted: 0, days: 0 };
+  const extensions = { requested: 0, granted: 0, seconds: 0 };
   let ackedAt: bigint | undefined;
   let fixedAt: bigint | undefined;
 
@@ -122,7 +136,7 @@ export function deriveCase({ caseEntity, related, clock: candidate, head }: Deri
         }
         verdicts.set(e.key, { verdict: "verified" });
         extensions.granted++;
-        extensions.days += num(e.attrs.days);
+        extensions.seconds += num(e.attrs.seconds);
         const to = BigInt((e.payload as GrantPayload).expiresAt ?? 0);
         if (to > expectedExpiry) expectedExpiry = to;
         break;
@@ -151,6 +165,7 @@ export function deriveCase({ caseEntity, related, clock: candidate, head }: Deri
   const counted = new Set<string>();
   const withdrawnBy = new Set<string>();
   let reveal: OtcEntity<RevealPayload> | undefined;
+  let revealBundle: RevealBundle | undefined;
   let disclosedByResearcher = false;
 
   for (const e of items) {
@@ -193,7 +208,10 @@ export function deriveCase({ caseEntity, related, clock: candidate, head }: Deri
       }
       verdicts.set(e.key, { verdict: "verified" });
       if (rv.payload.by === "researcher") disclosedByResearcher = true;
-      reveal ??= rv;
+      if (!reveal) {
+        reveal = rv;
+        revealBundle = check.bundle;
+      }
     }
   }
 
@@ -222,7 +240,7 @@ export function deriveCase({ caseEntity, related, clock: candidate, head }: Deri
     ...items.map((e) => {
       const v = verdicts.get(e.key) ?? { verdict: "verified" as Verdict };
       const item: TimelineItem = { key: e.key, kind: e.kind, by: e.creator, block: e.createdAt, ...v };
-      if (e.attrs.days !== undefined) item.days = num(e.attrs.days);
+      if (e.attrs.seconds !== undefined) item.seconds = num(e.attrs.seconds);
       if (e.kind === "receipt") item.outcome = (e.payload as ReceiptPayload).outcome;
       if (e.kind === "handoff") item.to = e.attrs.to as Address;
       return item;
@@ -252,5 +270,19 @@ export function deriveCase({ caseEntity, related, clock: candidate, head }: Deri
     shares,
     ...(reveal ? { reveal } : {}),
     revealedEarly: !!reveal && reveal.payload.by === "watchers" && reveal.createdAt < expectedExpiry,
+    ...attribute(reveal, revealBundle, inboxes),
   };
+}
+
+function attribute(
+  reveal: OtcEntity<RevealPayload> | undefined,
+  bundle: RevealBundle | undefined,
+  inboxes: OtcEntity<InboxPayload>[] | undefined,
+): Pick<CaseView, "attribution" | "vendor"> {
+  if (!reveal || !bundle) return { attribution: null };
+  const inbox = inboxes?.find((i) => i.key.toLowerCase() === bundle.inbox.toLowerCase());
+  if (!inbox) return { attribution: "unknown" };
+  const ok = eqAddr(inbox.creator, bundle.vendor) && inbox.payload?.meta === bundle.meta;
+  if (!ok) return { attribution: "mismatch" };
+  return { attribution: "verified", vendor: { name: inbox.payload.name, address: inbox.creator, inbox: inbox.key } };
 }

@@ -1,0 +1,38 @@
+{
+  "name": "on-the-clock",
+  "version": "0.1.0",
+  "description": "Verify vulnerability-disclosure clocks on Arkiv, or run a watcher that releases them when they lapse.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "on-the-clock": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"cli: covered by the sdk suite\""
+  },
+  "keywords": [
+    "arkiv",
+    "vulnerability-disclosure",
+    "embargo",
+    "cli",
+    "watcher"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "on-the-clock-sdk": "workspace:*",
+    "viem": "^2.57.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "tsup": "^8.5.1",
+    "typescript": "^7.0.2"
+  }
+}

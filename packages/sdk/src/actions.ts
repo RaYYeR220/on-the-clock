@@ -44,7 +44,9 @@ export async function createInbox(wallet: WalletArkivClient, input: InboxInput) 
     attributes: { ...baseAttrs("inbox"), name: A.str(input.name.slice(0, 64)), sla: A.u64(input.sla), embargo: A.u64(input.embargo) },
     expires: ExpirationTime.fromSeconds(LIFETIME.inboxLease),
     // readonly: a vendor cannot swap its keys under an open case. Rotation means a new inbox.
-    flags: { readonly: true },
+    // permissionlessExtension: anyone who depends on the inbox (a researcher with an open case against
+    // it) can keep it alive, so a vendor cannot dodge attribution by letting it lapse.
+    flags: { readonly: true, permissionlessExtension: true },
   });
 }
 
@@ -92,6 +94,12 @@ export async function fileCase(wallet: WalletArkivClient, pub: PublicArkivClient
   const sealed = await sealCase({ ...input, caseKey: caseSlot.key, clockKey: clockSlot.key, deadlineBlock, deadlineAt });
 
   const triggerExpiry = deadlineBlock + blocks(LIFETIME.triggerGrace);
+  // Filing keeps the vendor's inbox alive until the case can be attributed: deadline plus a month.
+  const inboxFloor = deadlineBlock + blocks(LIFETIME.inboxLease);
+  const extendInbox =
+    input.inbox.permissionlessExtension && input.inbox.expiresAt !== undefined && inboxFloor > input.inbox.expiresAt
+      ? [{ entityKey: input.inbox.key, expires: ExpirationTime.atBlock(inboxFloor) }]
+      : [];
   const res = await wallet.executeBatch({
     creates: [
       {
@@ -127,6 +135,7 @@ export async function fileCase(wallet: WalletArkivClient, pub: PublicArkivClient
         salt: triggerSlots[i]!.salt,
       })),
     ],
+    extensions: extendInbox,
     ownershipChanges: [
       { entityKey: caseSlot.key, newOwner: SEALED_OWNER },
       ...triggerSlots.map((s) => ({ entityKey: s.key, newOwner: SEALED_OWNER })),
@@ -168,8 +177,8 @@ export function triggerKeysOf(bundle: CaseBundle): Hex[] {
  * Grants more time. The clock's expiry, every trigger's expiry and the grant record move together;
  * a clock pushed out without its escrow (or a grant with no extension behind it) cannot exist.
  */
-export async function grantExtension(wallet: WalletArkivClient, bundle: CaseBundle, opts: { days: number; request?: Hex; seconds?: number }) {
-  const seconds = opts.seconds ?? opts.days * 86_400;
+export async function grantExtension(wallet: WalletArkivClient, bundle: CaseBundle, opts: { seconds: number; request?: Hex }) {
+  const { seconds } = opts;
   const newExpiry = bundle.view.clock.expiresAt + blocks(seconds);
   const payload: GrantPayload = { v: 1, expiresAt: newExpiry.toString(), ...(opts.request ? { request: opts.request } : {}) };
   return wallet.executeBatch({
@@ -177,7 +186,7 @@ export async function grantExtension(wallet: WalletArkivClient, bundle: CaseBund
       {
         payload: encodePayload(payload),
         contentType: JSON_TYPE,
-        attributes: { ...baseAttrs("grant"), case: A.key(bundle.caseEntity.key), days: A.u64(opts.days) },
+        attributes: { ...baseAttrs("grant"), case: A.key(bundle.caseEntity.key), seconds: A.u64(seconds) },
         expires: ExpirationTime.fromSeconds(LIFETIME.record),
         flags: { readonly: true },
       },
@@ -240,7 +249,7 @@ export async function vendorAct(
   caseKey: Hex,
   casePayload: CasePayload,
   act: VendorAct,
-  opts: { days?: number; note?: string } = {},
+  opts: { seconds?: number; note?: string } = {},
 ) {
   const payload: VendorActPayload = { v: 1, ...(opts.note ? { note: sealNote(caseKey, casePayload, opts.note) } : {}) };
   return responder.createEntity({
@@ -249,7 +258,7 @@ export async function vendorAct(
     attributes: {
       ...baseAttrs(act),
       case: A.key(caseKey),
-      ...(act === "extreq" ? { days: A.u64(opts.days ?? 30) } : {}),
+      ...(act === "extreq" ? { seconds: A.u64(opts.seconds ?? 30 * 86_400) } : {}),
     },
     expires: ExpirationTime.fromSeconds(LIFETIME.record),
     flags: { readonly: true },

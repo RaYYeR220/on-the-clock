@@ -161,3 +161,50 @@ describe("reveals inside the case state", () => {
     expect(deriveCase({ caseEntity, related: [mine], clock: null, head: 600n }).status).toBe("disclosed");
   });
 });
+
+describe("who a reveal names", () => {
+  const researcher = privateKeyToAccount(researcherSelfKey).address;
+  const asInbox = (k: Hex, creator: Address, payload: InboxPayload): OtcEntity<InboxPayload> => ({
+    key: k, kind: "inbox", creator, owner: creator, createdAt: 50n, expiresAt: 99_999n, readonly: true, permissionlessExtension: true,
+    attrs: { app: "onclock", kind: "inbox" }, payload, payloadBytes: 1,
+  });
+  const caseOf = (payload: CasePayload): OtcEntity<CasePayload> => ({
+    key: caseKey, kind: "case", creator: researcher, owner: researcher, createdAt: 100n, expiresAt: 99_999n, readonly: true, permissionlessExtension: true,
+    attrs: { app: "onclock", kind: "case", sev: 4n }, payload, payloadBytes: 1,
+  });
+  const revealOf = (k: Hex): OtcEntity => ({
+    key: `0x${"77".repeat(32)}`, kind: "reveal", creator: watchers[0]!.address, owner: watchers[0]!.address, createdAt: 1001n, expiresAt: 99_999n,
+    readonly: true, permissionlessExtension: true, attrs: { app: "onclock", kind: "reveal", case: caseKey }, payload: { v: 1, key: k, by: "watchers" }, payloadBytes: 1,
+  });
+
+  it("names the vendor only once its inbox checks out", async () => {
+    const sealed = await file();
+    const base = { caseEntity: caseOf(sealed.payload), related: [revealOf(sealed.advisoryKey)], clock: null, head: 1100n };
+    expect(deriveCase(base).attribution).toBe("unknown");
+    const v = deriveCase({ ...base, inboxes: [asInbox(inbox.key, inbox.creator, inbox.payload)] });
+    expect(v.attribution).toBe("verified");
+    expect(v.vendor?.name).toBe("Halcyon Bridge");
+  });
+
+  it("a researcher who pins the case on someone else's inbox is caught", async () => {
+    // Addressed to Halcyon's keys, but the bundle names an innocent vendor's inbox.
+    const innocent = { key: `0x${"22".repeat(32)}` as Hex, creator: "0x8888888888888888888888888888888888888888" as Address, payload: { ...inbox.payload, name: "Innocent Labs", meta: otherVendor.metaAddress } };
+    const sealed = await sealCase({
+      report: { advisory: { title: "t", component: "c", severity: 3, summary: "s", researcher: "r" }, details: "d", impact: "i", reproduction: "r", contact: "c" },
+      advisory: { title: "t", component: "c", severity: 3, summary: "s", researcher: "r" },
+      poc: "p",
+      inbox: { key: innocent.key, creator: innocent.creator, payload: { ...innocent.payload, meta: vendorKeys.metaAddress } },
+      watchers, k: 2, researcherSelfKey, caseKey, clockKey, deadlineBlock: 1000n, deadlineAt: 0,
+    });
+    const v = deriveCase({
+      caseEntity: caseOf(sealed.payload),
+      related: [revealOf(sealed.advisoryKey)],
+      clock: null,
+      head: 1100n,
+      inboxes: [asInbox(innocent.key, innocent.creator, innocent.payload)],
+    });
+    expect(v.status).toBe("revealed");
+    expect(v.attribution).toBe("mismatch");
+    expect(v.vendor).toBeUndefined();
+  });
+});

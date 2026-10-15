@@ -70,11 +70,34 @@ export async function loadCase(pub: PublicArkivClient, caseKey: Hex): Promise<Ca
   ]);
   const caseEntity = all.find((e) => e.kind === "case" && e.key.toLowerCase() === caseKey.toLowerCase()) as OtcEntity<CasePayload> | undefined;
   if (!caseEntity) return null;
+  const inboxes = await inboxesFor(pub, caseEntity, all);
   // The clock is the entity the case file committed to, by the same author. Anything else that
   // calls itself a clock for this case is noise someone else wrote.
   const clock = all.find((e) => isCaseClock(caseEntity, e)) ?? null;
   const related = all.filter((e) => e !== caseEntity && e !== clock);
-  return { view: deriveCase({ caseEntity, related, clock, head }), caseEntity, related, clock, head };
+  return { view: deriveCase({ caseEntity, related, clock, head, inboxes }), caseEntity, related, clock, head };
+}
+
+/**
+ * The inbox a reveal names, fetched so attribution can be checked. If the vendor deleted it, fall back
+ * to the inbox as it stood when the case was filed (historical query; Tiramisu keeps about 11 days).
+ */
+async function inboxesFor(pub: PublicArkivClient, caseEntity: OtcEntity<CasePayload>, related: OtcEntity[]): Promise<OtcEntity<InboxPayload>[]> {
+  for (const r of related) {
+    if (r.kind !== "reveal") continue;
+    const k = (r.payload as RevealPayload | null)?.key;
+    if (typeof k !== "string") continue;
+    const check = verifyRevealKey(caseEntity.key, caseEntity.payload, k as Hex);
+    if (!check.bundle) continue;
+    const live = await getOne<InboxPayload>(pub, check.bundle.inbox);
+    if (live) return [live];
+    try {
+      return await fetchAll<InboxPayload>(pub, [app(), eq("$key", key(check.bundle.inbox))], { atBlock: caseEntity.createdAt });
+    } catch {
+      return []; // outside the history window: attribution stays "unknown"
+    }
+  }
+  return [];
 }
 
 export interface Board {
@@ -96,18 +119,19 @@ export async function loadBoard(pub: PublicArkivClient): Promise<Board> {
     }
   }
   const cases: CaseBundle[] = [];
+  const inboxes = all.filter((e) => e.kind === "inbox") as OtcEntity<InboxPayload>[];
   for (const e of all) {
     if (e.kind !== "case") continue;
     const caseEntity = e as OtcEntity<CasePayload>;
     const rel = byCase.get(e.key.toLowerCase()) ?? [];
     const clock = rel.find((r) => isCaseClock(caseEntity, r)) ?? null;
     const related = rel.filter((r) => r !== clock);
-    cases.push({ view: deriveCase({ caseEntity, related, clock, head }), caseEntity, related, clock, head });
+    cases.push({ view: deriveCase({ caseEntity, related, clock, head, inboxes }), caseEntity, related, clock, head });
   }
   return {
     head,
     cases,
-    inboxes: all.filter((e) => e.kind === "inbox") as OtcEntity<InboxPayload>[],
+    inboxes,
     watchers: dedupeByCreator(all.filter((e) => e.kind === "watcher") as OtcEntity<WatcherPayload>[]),
   };
 }
@@ -185,7 +209,10 @@ export async function resolveReveal(pub: PublicArkivClient, bundle: CaseBundle):
   return verifyRevealKey(caseEntity.key, caseEntity.payload, k, inbox);
 }
 
-/** Reveal entities naming a vendor. Each one is an index, re-verified before it counts. */
+/**
+ * Reveal entities naming a vendor. The `vendor` attribute is only an index written by whoever posted
+ * the reveal: load each case and count it only when its attribution is "verified".
+ */
 export async function listRevealsForVendor(pub: PublicArkivClient, vendor: Address): Promise<OtcEntity<RevealPayload>[]> {
   return fetchAll<RevealPayload>(pub, [app(), kindIs("reveal"), eq("vendor", addr(vendor))]);
 }
