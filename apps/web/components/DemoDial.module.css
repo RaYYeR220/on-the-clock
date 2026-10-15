@@ -29,7 +29,7 @@
 .mv_checking .hand { animation: sweep 1.6s linear infinite; }
 .mv_released .hand { transition: transform 0.8s var(--ease); transform: rotate(0deg); }
 @keyframes sweep { to { transform: rotate(360deg); } }
-.mvLabel { display: flex; align-items: center; gap: 7px; font: 500 10.5px/1.2 var(--mono); letter-spacing: 0.04em; color: var(--soft); white-space: nowrap; }
+.mvLabel { display: flex; align-items: center; justify-content: center; gap: 7px; max-width: 100%; font: 500 10.5px/1.2 var(--mono); letter-spacing: 0.04em; color: var(--soft); text-align: center; overflow-wrap: anywhere; }
 .mvLabel :global(.lamp) { width: 5px; height: 5px; box-shadow: none; }
 .mvState { max-width: 13ch; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); text-align: center; text-wrap: balance; }
 .mv_released .mvState { color: rgb(var(--br-300)); }

@@ -41,14 +41,21 @@ type Watched = { keys: Set<string>; owners: Set<string> };
  * a known key, or a creation by a known author. Entity events carry no attributes, so filtering by
  * author is what keeps a busy testnet from turning into a query storm.
  */
-function useEventRefresh(load: () => void, watched: React.MutableRefObject<Watched>, everyMs = 30_000) {
+function useEventRefresh(load: () => unknown, watched: React.MutableRefObject<Watched>, everyMs = 30_000) {
+  // The latest `load`, read at call time: the subscription and the poll must survive re-renders (a
+  // countdown re-renders every second), or the poll never fires and events land on a torn-down socket.
+  const latest = useRef(load);
   useEffect(() => {
+    latest.current = load;
+  });
+  useEffect(() => {
+    const run = () => void latest.current();
     let timer: ReturnType<typeof setTimeout> | null = null;
     const soon = () => {
       if (timer) return;
       timer = setTimeout(() => {
         timer = null;
-        load();
+        run();
       }, 1_200);
     };
     const touches = (k?: string) => !!k && watched.current.keys.has(k.toLowerCase());
@@ -59,13 +66,13 @@ function useEventRefresh(load: () => void, watched: React.MutableRefObject<Watch
       onOwnershipTransferred: (e) => touches(e.entityKey) && soon(),
       onError: () => undefined,
     });
-    const poll = setInterval(load, everyMs);
+    const poll = setInterval(run, everyMs);
     return () => {
       stop();
       clearInterval(poll);
       if (timer) clearTimeout(timer);
     };
-  }, [load, watched, everyMs]);
+  }, [watched, everyMs]);
 }
 
 export function useCase(caseKey: Hex) {
@@ -107,7 +114,7 @@ export function useCase(caseKey: Hex) {
   useEffect(() => {
     void load();
   }, [load]);
-  useEventRefresh(() => void load(), watched, 20_000);
+  useEventRefresh(load, watched, 20_000);
   return { bundle, reveal, revealState, error, loading, reload: load };
 }
 
@@ -140,7 +147,7 @@ export function useBoard() {
   useEffect(() => {
     void load();
   }, [load]);
-  useEventRefresh(() => void load(), watched, 30_000);
+  useEventRefresh(load, watched, 30_000);
   return { board, error, reload: load };
 }
 
