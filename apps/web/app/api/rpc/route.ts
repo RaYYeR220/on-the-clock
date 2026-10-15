@@ -15,6 +15,9 @@ const READS = new Set([
   "eth_getLogs",
   "eth_getTransactionReceipt",
   "eth_getTransactionByHash",
+  // waitForTransactionReceipt reads blocks while it checks whether a transaction was replaced.
+  "eth_getBlockByNumber",
+  "eth_getBlockByHash",
   "arkiv_query",
   "arkiv_getEntity",
   "arkiv_getEntityCount",
