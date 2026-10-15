@@ -4,7 +4,7 @@
 // session to /api/rpc, a read-only proxy that adds an access key. Writes always go direct.
 import { createPublicClient, createWalletClient, type PublicArkivClient, type WalletArkivClient } from "@arkiv-network/sdk";
 import { tiramisu } from "@arkiv-network/sdk/chains";
-import { createPublicClient as createViemClient, fallback, http, webSocket, type Account, type PublicClient } from "viem";
+import { createPublicClient as createViemClient, fallback, http, webSocket, type Account, type PublicClient, type Transport } from "viem";
 
 export const RPC = tiramisu.rpcUrls.default.http[0];
 export const WS = tiramisu.rpcUrls.default.webSocket?.[0] ?? "wss://rpc.tiramisu.db-chain.testnet.arkiv.network";
@@ -14,11 +14,28 @@ export const DATA_EXPLORER = "https://data.arkiv.network";
 const direct = () => http(RPC, { retryCount: 0, timeout: 15_000 });
 const proxied = () => http("/api/rpc", { retryCount: 0, timeout: 20_000 });
 
+// Once the public RPC answers 429, skip it for a while instead of hitting it first on every read.
+const COOL_MS = 5 * 60_000;
+let directCoolUntil = 0;
+const coolingDirect = (): Transport => (opts) => {
+  const t = direct()(opts);
+  const request = (async (args: Parameters<typeof t.request>[0]) => {
+    if (Date.now() < directCoolUntil) throw new Error("public RPC budget spent for now; reading through the relay");
+    try {
+      return await t.request(args);
+    } catch (e) {
+      if ((e as { status?: number }).status === 429) directCoolUntil = Date.now() + COOL_MS;
+      throw e;
+    }
+  }) as typeof t.request;
+  return { ...t, request };
+};
+
 let pub: PublicArkivClient | null = null;
 let live: PublicArkivClient | null = null;
 
 export function readClient(): PublicArkivClient {
-  pub ??= createPublicClient({ chain: tiramisu, transport: fallback([direct(), proxied()], { rank: false }), pollingInterval: 1_000 });
+  pub ??= createPublicClient({ chain: tiramisu, transport: fallback([coolingDirect(), proxied()], { rank: false }), pollingInterval: 1_000 });
   return pub;
 }
 
