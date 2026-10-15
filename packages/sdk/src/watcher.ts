@@ -118,9 +118,14 @@ export class Watcher {
       await wallet.extendEntity({ entityKey: this.leaseKey, expires: ExpirationTime.atBlock(until) });
       return;
     }
-    // Reuse a lease that is still alive from an earlier run, otherwise take out a new one.
-    const mine = await fetchAll<WatcherPayload>(pub, [app(), kindIs("watcher")], { createdBy: this.address });
-    const current = mine.find((m) => m.payload?.pubkey === this.pubkey);
+    // Reuse a lease that is still alive from an earlier run if it describes this process, otherwise
+    // take out a new one and drop the stale ones.
+    const mine = (await fetchAll<WatcherPayload>(pub, [app(), kindIs("watcher")], { createdBy: this.address })).filter(
+      (m) => m.payload?.pubkey === this.pubkey,
+    );
+    const current = mine.find(
+      (m) => m.payload.operator === this.o.operator && m.payload.version === this.o.version && m.attrs.region === this.o.region,
+    );
     if (current) {
       this.leaseKey = current.key;
       await wallet.extendEntity({ entityKey: current.key, expires: ExpirationTime.atBlock(until) });
@@ -135,6 +140,11 @@ export class Watcher {
     });
     this.leaseKey = r.entityKey;
     this.log("lease created", { lease: r.entityKey, tx: r.txHash });
+    for (const stale of mine) {
+      await wallet
+        .deleteEntity({ entityKey: stale.key })
+        .catch((e) => this.log("stale lease not removed", { lease: stale.key, err: String(e).split("\n")[0] }));
+    }
   }
 
   // ---------- jobs ----------
