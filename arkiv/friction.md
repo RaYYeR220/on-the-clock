@@ -285,7 +285,7 @@ use `predictEntityKeys` (which works well; see §7).
 
 ## 5. Docs and discovery
 
-### F-14 · Discovery files point agents and developers to dead or odd places
+### F-14 · Discovery files point tools and developers to dead or odd places
 
 - `https://arkiv.network/llms.txt` lists the MCP server as `https://hub.arkiv.network/mcp`. That page
   says "MCP SETUP IS TEMPORARILY UNAVAILABLE"; the working endpoint is `https://mcp.arkiv.network/devfolio`.
