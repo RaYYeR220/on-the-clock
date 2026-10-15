@@ -1,5 +1,6 @@
-// Renders ../PROOF.md from the newest ../proof/e2e-*.json: every claim as an explorer link. The same
-// record is copied into the web app, where /proof renders it.
+// Renders ../PROOF.md from the newest ../proof/e2e-*.json that ran against the deployed watchers (or
+// the newest run of any kind): every claim as an explorer link. The same record is copied into the
+// web app, where /proof renders it.
 //   node proof.ts
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 
@@ -8,11 +9,16 @@ const tx = (h?: unknown) => (typeof h === "string" && h.startsWith("0x") ? `[${h
 const ent = (k?: unknown) => (typeof k === "string" && k.startsWith("0x") ? `[${k.slice(0, 10)}…](${EXPLORER}/entity/${k})` : "—");
 
 type Step = Record<string, unknown> & { name: string; at: string };
-const files = readdirSync("../proof").filter((f) => /^e2e-\d+\.json$/.test(f)).sort();
-const latest = files.at(-1);
-if (!latest) throw new Error("no ../proof/e2e-*.json yet: run e2e.ts first");
-const run = JSON.parse(readFileSync(`../proof/${latest}`, "utf8")) as { startedAt: string; finishedAt: string; steps: Step[]; config: Record<string, unknown> };
-const s = (prefix: string) => run.steps.find((x) => x.name.startsWith(prefix));
+type Run = { file: string; startedAt: string; finishedAt: string; steps: Step[]; config: Record<string, unknown> };
+const runs: Run[] = readdirSync("../proof")
+  .filter((f) => /^e2e-\d+\.json$/.test(f))
+  .sort()
+  .map((file) => ({ file, ...JSON.parse(readFileSync(`../proof/${file}`, "utf8")) }));
+if (!runs.length) throw new Error("no ../proof/e2e-*.json yet: run e2e.ts first");
+const run = [...runs].reverse().find((r) => r.config.deployedWatchers) ?? runs.at(-1)!;
+const latest = run.file;
+const stepOf = (r: Run, prefix: string) => r.steps.find((x) => x.name.startsWith(prefix));
+const s = (prefix: string) => stepOf(run, prefix);
 const all = (prefix: string) => run.steps.filter((x) => x.name.startsWith(prefix));
 
 const inbox = s("vendor opened");
@@ -24,8 +30,18 @@ const forged = s("impostor wrote");
 const derived = s("case as derived");
 const fixed = s("vendor marked");
 const final = s("final state");
-const rejections = (s("watcher rejections")?.rejections as Record<string, unknown>[] | undefined) ?? [];
-const receipts = (final?.receipts as { key: string; by: string; block: string; outcome: string }[] | undefined) ?? [];
+const rejectionsOf = (r: Run) => (stepOf(r, "watcher rejections")?.rejections as Record<string, unknown>[] | undefined) ?? [];
+// Deployed watchers log their refusals on their own machines; the in-process runs record them here.
+const rejectionRun = rejectionsOf(run).length ? run : [...runs].reverse().find((r) => rejectionsOf(r).length);
+const rejections = rejectionRun ? rejectionsOf(rejectionRun) : [];
+const foreign = new Set(((final?.foreign as string[] | undefined) ?? []).map((a) => a.toLowerCase()));
+// The impostor's fake receipt is listed under forgeries, not here.
+const receipts = ((final?.receipts as { key: string; by: string; block: string; outcome: string }[] | undefined) ?? [])
+  .filter((r) => !foreign.has(r.by.toLowerCase()))
+  .sort((a, b) => Number(a.block) - Number(b.block));
+// The deadline after the grant, as the state derived from Arkiv saw it.
+const deadline = s("case as derived")?.deadline;
+const reason = (e: unknown) => String(e ?? "").replace(/^.*Reason:\s*/, "").slice(0, 120);
 
 const lines: string[] = [];
 const L = (x = "") => lines.push(x);
@@ -51,6 +67,11 @@ L(`| Vendor marks it fixed | responder | ${tx(fixed?.tx)} | ${ent(fixed?.entity)
 for (const r of receipts) L(`| Watcher publishes a \`${r.outcome}\` receipt at block ${r.block} | ${r.by.slice(0, 10)}… | — | ${ent(r.key)} |`);
 L(`| Reveal: advisory key published and verified | watcher | — | ${ent(final?.revealEntity)} |`);
 L();
+if (deadline !== undefined && receipts.length)
+  L(
+    `The clock was filed to expire at block ${filed?.deadlineBlock}; the grant moved its Entity Expiration to block ${deadline}. The watchers' receipts landed in blocks ${receipts.map((r) => r.block).join(", ")}.`,
+  );
+L();
 L(`Final status: **${final?.status}**, reveal verified: **${final?.revealOk}**, vendor attribution: **${final?.attribution}**${final?.vendor ? ` (${final.vendor})` : ""}.`);
 L();
 L(`Checks: \`${JSON.stringify(final?.checks)}\``);
@@ -62,7 +83,7 @@ L();
 L("| Attempt | Expected | Observed | Transaction |");
 L("|---|---|---|---|");
 for (const r of all("refused:")) {
-  L(`| ${r.name.replace("refused: ", "")} | revert | ${r.reverted ? `reverted: ${String(r.error).slice(0, 90)}` : "**NOT reverted**"} | ${tx(r.tx)} |`);
+  L(`| ${r.name.replace("refused: ", "")} | revert | ${r.reverted ? `reverted: ${reason(r.error)}` : "**NOT reverted**"} | ${tx(r.tx)} |`);
 }
 L();
 L("## Forgeries anyone can write, none of which count");
@@ -71,8 +92,21 @@ L(`The impostor wallet wrote a fake acknowledgement, a fake fix, a fake lapse re
 L();
 for (const i of (derived?.ignored as string[] | undefined) ?? []) L(`- ${i}`);
 L();
-L(`Watcher rejections of the copied escrow (it never released anything): ${rejections.length}`);
+L(
+  rejectionRun && rejectionRun !== run
+    ? `Watchers refusing copied escrows, as recorded by the in-process run [\`${rejectionRun.file}\`](proof/${rejectionRun.file}) (the deployed watchers log theirs on their own machines):`
+    : `Watchers refusing copied escrows (none ever released anything): ${rejections.length}`,
+);
 for (const r of rejections) L(`- ${String(r.watcher)}: ${String(r.reason)} (${ent(r.trigger)})`);
+L();
+L("## Every run");
+L();
+L("| Record | Started | Watchers | Final status | Reveal verified |");
+L("|---|---|---|---|---|");
+for (const r of runs) {
+  const f = stepOf(r, "final state");
+  L(`| [\`${r.file}\`](proof/${r.file}) | ${r.startedAt} | ${r.config.deployedWatchers ? "deployed" : "in-process"} | ${f?.status ?? "—"} | ${f?.revealOk ?? "—"} |`);
+}
 L();
 writeFileSync("../PROOF.md", lines.join("\n") + "\n");
 mkdirSync("../apps/web/public", { recursive: true });

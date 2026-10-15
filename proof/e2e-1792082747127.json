@@ -1,0 +1,210 @@
+{
+  "network": "tiramisu",
+  "chainId": 7738577,
+  "startedAt": "2026-10-15T16:42:26.856Z",
+  "steps": [
+    {
+      "name": "vendor opened an inbox",
+      "at": "2026-10-15T16:42:32.092Z",
+      "inbox": "0x8fd93c0a8d73887c6dfe3c1d8cf3c6d276f8d86218db5a7f99e963d3cd2f8876",
+      "tx": "0xc149ed4ce093995f9e89a1d45a534ff10264e8c39b28325b8ee4a36e59e078bd",
+      "by": "0x41bD50FF6481a82f590a8D2589dd291AB04b1585"
+    },
+    {
+      "name": "researcher filed the case in one batch",
+      "at": "2026-10-15T16:42:37.879Z",
+      "case": "0x4d2e4f930bde2c3249f185a3d65996939d5745569844ed69726281498763a36b",
+      "clock": "0x4eb41a41e5d2c265745edd0675ad3a8aec8c3d3acef159e6aba06d9c53a59fc8",
+      "triggers": [
+        "0x41e116a344ec36123580191c158910f1de08bb4ff23659af6f82bc892de152f1",
+        "0xf4f82bbd195bc3b4ab0de040362b20e1d53d73a663c575dab9b0997d8d1b93cf",
+        "0x6efe46a06a5425a7ba0434350eaa5059eb92518ded7ac207fa981e8b85dd893b"
+      ],
+      "deadlineBlock": "616453",
+      "tx": "0x9ac5fa9f230989ddeae40998b62c8657a14919bbdf91f353e3b30234239477d0",
+      "postageTx": "0xc89e5c87f609f024f3e89ec1987f532e3887e2eaed372025e20b10faf42b304d",
+      "by": "0xFD35C169EB401be44C344d48674cFB05fCC1647b"
+    },
+    {
+      "name": "vendor found the case by trial-decryption",
+      "at": "2026-10-15T16:42:40.400Z",
+      "scanned": 4,
+      "matched": 4,
+      "title": "Withdrawal proofs can be replayed across epochs"
+    },
+    {
+      "name": "vendor derived the one-time responder",
+      "at": "2026-10-15T16:42:40.402Z",
+      "responder": "0x0ded7e05292a3135a6A16a39E3d00Be89ad55bF1",
+      "matchesCase": true
+    },
+    {
+      "name": "vendor acknowledged (from the responder)",
+      "at": "2026-10-15T16:42:45.202Z",
+      "entity": "0x5c387c51925a04ee569b23583fb6f675a878d741d5b80d72446e3b45af1dd557",
+      "tx": "0xe6137f1b49b71f8256b476a299f1f0717cc47327098740c4b038136a7e41f554"
+    },
+    {
+      "name": "vendor asked for more time",
+      "at": "2026-10-15T16:42:49.938Z",
+      "entity": "0x0d5babbe41b2bbc7df6862006ed48e29113b64d72638c9c6dfc3acfd38a63c2e",
+      "tx": "0x3cd64d203966723d8e14596d1c8bda5d512860e4d5a0c43287bf28cfbdd2792c",
+      "seconds": 60
+    },
+    {
+      "name": "refused: vendor tries to extend the clock itself",
+      "at": "2026-10-15T16:43:09.646Z",
+      "reverted": true,
+      "error": "Transaction 0x27feac0cb9263ee913f2df77117e4fc80851b42f4a1a79376781e29825fb3b12 reverted. Reason: entity 0x4eb41a41…a59fc8 is owned by 0xFD35C169EB401be44C344d48674cFB05fCC1647b, not 0x0ded7e05292a3135a6A16a39E3d00Be89ad55bF1",
+      "tx": "0x27feac0cb9263ee913f2df77117e4fc80851b42f4a1a79376781e29825fb3b12"
+    },
+    {
+      "name": "refused: vendor tries to delete the clock",
+      "at": "2026-10-15T16:43:09.646Z",
+      "reverted": true,
+      "error": "Transaction 0x75e982efc0eb35f54aa25a278fd16013b43f8f564e3cf41bc0c94e68190cee06 reverted. Reason: entity 0x4eb41a41…a59fc8 is owned by 0xFD35C169EB401be44C344d48674cFB05fCC1647b, not 0x0ded7e05292a3135a6A16a39E3d00Be89ad55bF1",
+      "tx": "0x75e982efc0eb35f54aa25a278fd16013b43f8f564e3cf41bc0c94e68190cee06"
+    },
+    {
+      "name": "refused: researcher tries to edit the sealed case file",
+      "at": "2026-10-15T16:43:09.646Z",
+      "reverted": true,
+      "error": "Transaction 0x7d0fafabcfc199c4ca1543037f7fa11ede5300958404c955ca30920dc01113f2 reverted. Reason: entity 0x4d2e4f93…63a36b is owned by 0x000000000000000000000000000000000000dEaD, not 0xFD35C169EB401be44C344d48674cFB05fCC1647b",
+      "tx": "0x7d0fafabcfc199c4ca1543037f7fa11ede5300958404c955ca30920dc01113f2"
+    },
+    {
+      "name": "refused: researcher tries to delete the sealed case file",
+      "at": "2026-10-15T16:43:09.646Z",
+      "reverted": true,
+      "error": "Transaction 0x0cec8bd0379480396cd23d2c61aebb4a975c8c9c142a2b89fdd3d4bc25f2b049 reverted. Reason: entity 0x4d2e4f93…63a36b is owned by 0x000000000000000000000000000000000000dEaD, not 0xFD35C169EB401be44C344d48674cFB05fCC1647b",
+      "tx": "0x0cec8bd0379480396cd23d2c61aebb4a975c8c9c142a2b89fdd3d4bc25f2b049"
+    },
+    {
+      "name": "researcher granted the extension in one batch",
+      "at": "2026-10-15T16:43:14.622Z",
+      "tx": "0xa2e9c9ca8ea06575be3ef36a9e5425808e1dbb1a3ca668209eff05181ef2f96b",
+      "seconds": 60
+    },
+    {
+      "name": "impostor wrote a fake ack, fake fix, fake receipt, fake reveal, a decoy clock and a copied trigger",
+      "at": "2026-10-15T16:43:24.182Z",
+      "tx": "0x6cf5391a99942146f95cea2d6f6e72d625179bf9aa09c7f64c7fe12563012551",
+      "decoyClockTx": "0x56319a47d3cc713cd64e449d8a77dbe1f518a6760c9851b4f0a1782f0b86336d",
+      "entities": [
+        "0xb5725a3a3a761ca68658cef2d8727cbe4a126b910132b44f4abf4c29ed475416",
+        "0x72d30c01a9d333c69ccbe9041ac111775ff1d46825d5ff7b1d3c7b4b83d95464",
+        "0x312bdb801a68506eba39436687d938f44e5e863ff86ee8132954fa534bb149d5",
+        "0x5c6bcf0a79672a481ce19d15514e28bb22c4f9a633fcd9e0a24e53fb98c323f9",
+        "0xbd46c607fa5f0b7088c7982852539f406496829c36c0222ed8627d4bf7f3881c"
+      ],
+      "by": "0x455adcCF9547b41e6Fc05CE0e985accc857B37Fc"
+    },
+    {
+      "name": "case as derived from Arkiv after the forgeries",
+      "at": "2026-10-15T16:43:24.375Z",
+      "status": "acknowledged",
+      "ackedAt": "616398",
+      "extensionsGranted": 1,
+      "ignored": [
+        "receipt: not one of this case's watchers",
+        "reveal: its key does not open this case",
+        "fixed: not written by this case's responder",
+        "ack: not written by this case's responder"
+      ],
+      "clockLive": true,
+      "clockOwner": "0xFD35C169EB401be44C344d48674cFB05fCC1647b",
+      "deadline": "616483"
+    },
+    {
+      "name": "vendor marked it fixed",
+      "at": "2026-10-15T16:43:29.182Z",
+      "entity": "0x72aa840063f459a5c529c469c5951e46e22f7e6842b1919951c88aafc3502ef6",
+      "tx": "0xf2e98e2ad15da5adbe7334af0ac35ef678b71e887316f1f34d38ecc3fbd74f7f"
+    },
+    {
+      "name": "final state",
+      "at": "2026-10-15T16:45:47.127Z",
+      "status": "revealed",
+      "attribution": "verified",
+      "vendor": "Halcyon Bridge (test vendor)",
+      "receipts": [
+        {
+          "key": "0x814db74c7d10af12e46539b5bed3271dd158ec7fa107a4f160df2b6907cd4861",
+          "by": "0xb0Bae504e74A62EE4FBD8F848e8dB9c08A22167B",
+          "block": "616487",
+          "outcome": "lapsed"
+        },
+        {
+          "key": "0xfed63e0de15c82da314fff03db9f0621eba01f45ab104ceb6d143648686d09e9",
+          "by": "0xBDEd5092977488a26A6Eb2C671945A47040298D1",
+          "block": "616486",
+          "outcome": "lapsed"
+        },
+        {
+          "key": "0xf105b7e9a4973e87b654817e628d75c77404e014d374c1c1642ae6d9ae749e9e",
+          "by": "0x5839F13CB0548956ef69c3AbC333F9D16ba5C8eA",
+          "block": "616486",
+          "outcome": "lapsed"
+        },
+        {
+          "key": "0x312bdb801a68506eba39436687d938f44e5e863ff86ee8132954fa534bb149d5",
+          "by": "0x455adcCF9547b41e6Fc05CE0e985accc857B37Fc",
+          "block": "616418",
+          "outcome": "lapsed"
+        }
+      ],
+      "revealEntity": "0x3be52a3affbfc2f37018661f2ce18e88c5f1cb5c99c7be9c9d191523728d0a3d",
+      "revealOk": true,
+      "checks": {
+        "decrypts": true,
+        "commitment": true,
+        "delivery": true,
+        "responderBinding": true,
+        "inbox": true
+      },
+      "advisoryTitle": "Withdrawal proofs can be replayed across epochs",
+      "premature": [],
+      "foreign": [
+        "0x455adcCF9547b41e6Fc05CE0e985accc857B37Fc"
+      ]
+    },
+    {
+      "name": "watcher rejections",
+      "at": "2026-10-15T16:45:47.127Z",
+      "rejections": []
+    }
+  ],
+  "finishedAt": "2026-10-15T16:45:47.127Z",
+  "links": {
+    "case": "https://tiramisu.explorer.arkiv.network/entity/0x4d2e4f930bde2c3249f185a3d65996939d5745569844ed69726281498763a36b",
+    "clock": "https://tiramisu.explorer.arkiv.network/entity/0x4eb41a41e5d2c265745edd0675ad3a8aec8c3d3acef159e6aba06d9c53a59fc8",
+    "filing": "https://tiramisu.explorer.arkiv.network/tx/0x9ac5fa9f230989ddeae40998b62c8657a14919bbdf91f353e3b30234239477d0",
+    "grant": "https://tiramisu.explorer.arkiv.network/tx/0xa2e9c9ca8ea06575be3ef36a9e5425808e1dbb1a3ca668209eff05181ef2f96b",
+    "refusals": [
+      {
+        "label": "vendor tries to extend the clock itself",
+        "tx": "https://tiramisu.explorer.arkiv.network/tx/0x27feac0cb9263ee913f2df77117e4fc80851b42f4a1a79376781e29825fb3b12"
+      },
+      {
+        "label": "vendor tries to delete the clock",
+        "tx": "https://tiramisu.explorer.arkiv.network/tx/0x75e982efc0eb35f54aa25a278fd16013b43f8f564e3cf41bc0c94e68190cee06"
+      },
+      {
+        "label": "researcher tries to edit the sealed case file",
+        "tx": "https://tiramisu.explorer.arkiv.network/tx/0x7d0fafabcfc199c4ca1543037f7fa11ede5300958404c955ca30920dc01113f2"
+      },
+      {
+        "label": "researcher tries to delete the sealed case file",
+        "tx": "https://tiramisu.explorer.arkiv.network/tx/0x0cec8bd0379480396cd23d2c61aebb4a975c8c9c142a2b89fdd3d4bc25f2b049"
+      }
+    ]
+  },
+  "config": {
+    "embargoSeconds": 120,
+    "grantSeconds": 60,
+    "k": 2,
+    "n": 3,
+    "deployedWatchers": true,
+    "accessKey": true
+  }
+}
