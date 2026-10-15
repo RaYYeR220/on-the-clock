@@ -1,6 +1,7 @@
-// Renders ../PROOF.md from the newest ../proof/e2e-*.json: every claim as an explorer link.
+// Renders ../PROOF.md from the newest ../proof/e2e-*.json: every claim as an explorer link. The same
+// record is copied into the web app, where /proof renders it.
 //   node proof.ts
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const EXPLORER = "https://tiramisu.explorer.arkiv.network";
 const tx = (h?: unknown) => (typeof h === "string" && h.startsWith("0x") ? `[${h.slice(0, 10)}…](${EXPLORER}/tx/${h})` : "—");
@@ -74,4 +75,6 @@ L(`Watcher rejections of the copied escrow (it never released anything): ${rejec
 for (const r of rejections) L(`- ${String(r.watcher)}: ${String(r.reason)} (${ent(r.trigger)})`);
 L();
 writeFileSync("../PROOF.md", lines.join("\n") + "\n");
-console.log(`PROOF.md written from ${latest}`);
+mkdirSync("../apps/web/public", { recursive: true });
+copyFileSync(`../proof/${latest}`, "../apps/web/public/proof.json");
+console.log(`PROOF.md and apps/web/public/proof.json written from ${latest}`);

@@ -1,0 +1,71 @@
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.loading { margin-top: 36px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+.h2 { font: 500 clamp(26px, 2.8vw, 36px)/1.05 var(--display); letter-spacing: -0.035em; text-wrap: balance; }
+.forge .h3 { margin-bottom: 12px; font: 500 11px/1.4 var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.ok { color: rgb(var(--verd-400)); }
+.bad { color: rgb(var(--rust-300)); }
+.reason { color: rgb(var(--rust-300)); }
+
+.missing { margin-top: 36px; display: grid; gap: 14px; justify-items: start; max-width: 760px; }
+.missing h2 { font-size: 26px; }
+.missing :global(.code) { justify-self: stretch; }
+
+.strip { margin: 36px 0 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--hair); border-bottom: 1px solid var(--hair); }
+.strip > div { padding: 16px 20px 18px; border-left: 1px solid var(--hair); min-width: 0; }
+.strip > div:first-child { border-left: 0; padding-left: 0; }
+.strip dt { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.strip dd { margin: 8px 0 0; font-size: 15px; color: var(--ink); overflow-wrap: anywhere; }
+.outcome { margin-top: 20px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; color: var(--soft); }
+.outcome b { font-weight: 500; color: rgb(var(--br-300)); }
+
+.section { margin-top: 64px; }
+
+.steps { list-style: none; padding: 0; margin: 24px 0 0; border-top: 1px solid var(--hair); }
+.step { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 16px; padding: 18px 0; border-bottom: 1px solid var(--hair); }
+.n { padding-top: 2px; font-size: 12px; color: rgb(var(--br-400)); }
+.sbody { min-width: 0; }
+.shead { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+.shead b { font-weight: 500; font-size: 16px; }
+.shead span { font-size: 12px; flex: none; }
+.kv { margin-top: 10px; grid-template-columns: 170px minmax(0, 1fr); gap: 6px 18px; font-size: 13.5px; }
+.pair { display: contents; }
+.kv dd { color: var(--soft); }
+.list { display: inline-flex; flex-wrap: wrap; gap: 4px 14px; }
+.receipts { list-style: none; padding: 0; margin-top: 10px; display: grid; gap: 6px; font-size: 13.5px; color: var(--soft); }
+.checks { list-style: none; padding: 0; margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px 18px; font: 400 13px/1.5 var(--mono); color: var(--soft); }
+
+.refusals { list-style: none; padding: 0; margin-top: 22px; border-top: 1px solid var(--hair); }
+.refusals li { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 18px 0; border-bottom: 1px solid var(--hair); }
+.rbody { min-width: 0; display: grid; gap: 4px; }
+.rbody b { font-weight: 500; }
+.rbody p:first-of-type { font: 400 12.5px/1.5 var(--mono); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.refusals li > :global(.stamp) { flex: none; }
+
+.forge { margin-top: 22px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.ignoredPanel { border-color: rgb(var(--rust-500) / 0.35); }
+.ignored { list-style: none; padding: 0; display: grid; gap: 10px; font-size: 14px; margin-bottom: 8px; }
+.ignored li { display: flex; gap: 10px; align-items: baseline; }
+.ignored b { font-weight: 500; }
+.x { flex: none; color: rgb(var(--rust-500)); font: 600 13px/1 var(--mono); }
+
+@media (max-width: 860px) {
+  .strip { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .strip > div { padding: 12px 12px 14px; border-left: 1px solid var(--hair); }
+  .strip > div:nth-child(odd) { border-left: 0; padding-left: 0; }
+  .strip > div:nth-child(n + 3) { border-top: 1px solid var(--hair); }
+  .section { margin-top: 48px; }
+  .step { grid-template-columns: 30px minmax(0, 1fr); gap: 10px; }
+  .kv { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .kv dt { margin-top: 8px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .kv dd { margin-bottom: 0; }
+  .refusals li { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .forge { grid-template-columns: minmax(0, 1fr); }
+}
+.missing p :global(.mono) { font-size: 0.88em; }

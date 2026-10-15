@@ -190,9 +190,10 @@ button { font: inherit; color: inherit; }
   text-transform: uppercase;
   transform: rotate(-4deg);
   opacity: 0.92;
-  mask-image: var(--grain);
-  mask-size: 120px;
+  position: relative;
 }
+/* Worn ink: the grain darkens the stamp a little instead of masking it away. */
+.stamp::after { content: ""; position: absolute; inset: -2px; background-image: var(--grain); background-size: 90px; mix-blend-mode: multiply; opacity: 0.9; pointer-events: none; }
 .stamp.rust { color: rgb(var(--rust-500)); }
 .stamp.brass { color: rgb(var(--br-400)); }
 .stamp.ink { color: rgb(var(--gm-300)); }

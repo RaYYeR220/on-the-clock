@@ -1,0 +1,24 @@
+.dial {
+  position: relative;
+  width: min(460px, 100%);
+  aspect-ratio: 1;
+  margin-inline: auto;
+}
+.dial svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.arc { transition: stroke-dasharray 0.9s linear; }
+.face {
+  position: absolute;
+  inset: 22%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+}

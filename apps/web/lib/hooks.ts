@@ -71,6 +71,8 @@ function useEventRefresh(load: () => void, watched: React.MutableRefObject<Watch
 export function useCase(caseKey: Hex) {
   const [bundle, setBundle] = useState<CaseBundle | null>(null);
   const [reveal, setReveal] = useState<RevealResult | null>(null);
+  /** "pending" while K is being rebuilt or verified, "failed" when the published shares do not open the case. */
+  const [revealState, setRevealState] = useState<"none" | "pending" | "done" | "failed">("none");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const watched = useRef<Watched>({ keys: new Set(), owners: new Set() });
@@ -89,7 +91,12 @@ export function useCase(caseKey: Hex) {
         keys: new Set([v.key, v.clock.key, ...b.related.map((r) => r.key)].map((k) => k.toLowerCase())),
         owners: new Set([v.researcher, v.responder, v.custodian, ...v.watchers].map((a) => a.toLowerCase())),
       };
-      if (["revealable", "revealed", "disclosed"].includes(v.status)) setReveal(await resolveReveal(readClient(), b));
+      if (["revealable", "revealed", "disclosed"].includes(v.status)) {
+        setRevealState((prev) => (prev === "done" ? prev : "pending"));
+        const r = await resolveReveal(readClient(), b);
+        setReveal(r);
+        setRevealState(r && r.checks.decrypts ? "done" : "failed");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message.split("\n")[0]! : String(e));
     } finally {
@@ -101,7 +108,7 @@ export function useCase(caseKey: Hex) {
     void load();
   }, [load]);
   useEventRefresh(() => void load(), watched, 20_000);
-  return { bundle, reveal, error, loading, reload: load };
+  return { bundle, reveal, revealState, error, loading, reload: load };
 }
 
 export function useBoard() {
