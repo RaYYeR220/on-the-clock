@@ -170,7 +170,7 @@ cd scripts && node --env-file=../.env fund.ts && node --env-file=../.env e2e.ts 
 ## What we got wrong, and fixed
 
 Each of these was a real hole in an earlier version. The first nine came from reviewing our own code
-with an attacker's goals. The last three came from running it on Tiramisu.
+with an attacker's goals. The last four came from running it on Tiramisu.
 
 **Found in review**
 1. **A copied trigger could release a share early.** Anyone could copy a watcher's encrypted share into
@@ -203,13 +203,22 @@ with an attacker's goals. The last three came from running it on Tiramisu.
     others' receipts were indexed, so none of them saw k shares, and the case stayed "revealable".
     It happened in three of our four runs.
     - A watcher whose receipt went out without the reveal now checks again two blocks later
-      (staggered per watcher), then every 30 seconds for a day.
+      (staggered per watcher), then at growing intervals for a day.
     - It resumes that duty after a restart.
     - On the run against the deployed watchers, the reveal landed four blocks after the receipts.
 11. **A copied trigger was skipped silently.** It never released anything, but it was not refused on
     the record either. Now every trigger is checked, and each refusal is logged.
 12. **A restarted watcher kept the labels of a lease from an earlier process.** It now takes out a
     fresh lease when the live one describes a different operator, region or version.
+13. **Our watchers spent the access key's monthly quota within hours.** Entity events carry no
+    attributes, so each watcher re-read its job list after every creation anywhere on the network. On
+    a busy testnet that was a query every few seconds from each of three machines. Once the key was
+    spent, every query was refused, and the watchers' leases lapsed.
+    - A watcher now looks for new triggers when a filing seals entities to `0x…dEaD` (one query per
+      filing), and every two minutes in case the socket missed one.
+    - After a 429 it pauses its queries, from 30 seconds up to five minutes, instead of spending the
+      budget on refusals.
+    - A spent key falls back to the anonymous budget. The watchers no longer share the site's key.
 
 ## License
 

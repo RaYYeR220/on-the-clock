@@ -86,3 +86,74 @@ describe("watcher reveal duty", () => {
     expect(t.job.state).toBe("done");
   });
 });
+
+describe("watcher query budget", () => {
+  const limited = () => Object.assign(new Error("HTTP request failed. Status: 429"), { status: 429 });
+
+  it("pauses queries after a 429 and backs off when it repeats", async () => {
+    const t = setup([]);
+    const handleDue = vi.fn(async () => {
+      throw limited();
+    });
+    Object.assign(t.w, { handleDue });
+    await t.w.tick();
+    expect(handleDue).toHaveBeenCalledTimes(1);
+    expect(t.w.quiet).toBe(true);
+    await t.w.tick();
+    expect(handleDue).toHaveBeenCalledTimes(1);
+
+    const w = t.w as unknown as { quietUntil: number; quietMs: number };
+    w.quietUntil = 0;
+    await t.w.tick();
+    expect(handleDue).toHaveBeenCalledTimes(2);
+    expect(w.quietMs).toBe(60_000);
+  });
+
+  it("keeps working the other jobs when one fails for another reason", async () => {
+    const t = setup([]);
+    const other: Job = { ...t.job, caseKey: `0x${"ee".repeat(32)}` as Hex, clockKey: `0x${"ff".repeat(32)}` as Hex };
+    t.w.jobs.set(other.caseKey, other);
+    const handleDue = vi.fn(async (job: Job) => {
+      if (job.caseKey === CASE) throw new Error("node hiccup");
+    });
+    Object.assign(t.w, { handleDue });
+    await t.w.tick();
+    expect(handleDue).toHaveBeenCalledTimes(2);
+    expect(t.w.quiet).toBe(false);
+  });
+
+  it("rescans when a filing seals entities, not on every creation on the network", async () => {
+    vi.useFakeTimers();
+    try {
+      let handlers: Record<string, (ev: Record<string, unknown>) => void> = {};
+      const t = setup([]);
+      Object.assign(t.w, { o: { ...(t.w as unknown as { o: object }).o, live: { watchEntityEvents: (h: typeof handlers) => ((handlers = h), () => {}) } } });
+      const rescan = vi.fn(async () => {});
+      Object.assign(t.w, { rescan });
+      (t.w as unknown as { subscribe: () => void }).subscribe();
+      expect(handlers.onEntityCreated).toBeUndefined();
+      handlers.onOwnershipTransferred!({ entityKey: CASE, newOwner: "0x1111111111111111111111111111111111111111" });
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(rescan).not.toHaveBeenCalled();
+      for (const k of [CASE, CLOCK]) handlers.onOwnershipTransferred!({ entityKey: k, newOwner: "0x000000000000000000000000000000000000dead" });
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(rescan).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("checks a pending reveal less often the longer it waits", async () => {
+    const t = setup([{ settled: false }, { settled: false }, { settled: false }, { settled: false }]);
+    await t.publish(t.job, "lapsed", DEADLINE + 2n, DEADLINE - 1n);
+    const gaps: bigint[] = [];
+    for (let i = 0; i < 3; i++) {
+      const at = t.job.retryAt!;
+      t.setHead(at);
+      await t.w.tick();
+      gaps.push(t.job.retryAt! - at);
+    }
+    expect(gaps[1]! - gaps[0]!).toBe(15n);
+    expect(gaps[2]! - gaps[1]!).toBe(30n);
+  });
+});

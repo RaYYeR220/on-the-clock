@@ -12,7 +12,8 @@ import { eq } from "@arkiv-network/sdk/query";
 import type { Address, Hex } from "viem";
 import { blocks, revealCreate } from "./actions.js";
 import { A, baseAttrs, encodePayload } from "./codec.js";
-import { LIFETIME, type Outcome } from "./constants.js";
+import { isRateLimited } from "./client.js";
+import { LIFETIME, SEALED_OWNER, type Outcome } from "./constants.js";
 import { publicKeyOf } from "./crypto/box.js";
 import { app, fetchAll, getOne, kindIs, listTriggersFor } from "./read.js";
 import { openShare, reconstruct, verifyRevealKey } from "./seal.js";
@@ -27,12 +28,16 @@ export type JobState = "armed" | "due" | "deleted" | "revealing" | "done" | "fai
 
 /**
  * A watcher whose receipt went out without the reveal checks the threshold again soon (k receipts in
- * one block is the usual case, not the exception), then every 30 s.
+ * one block is the usual case, not the exception), then after 30 s, doubling up to every 10 minutes.
  */
 const REVEAL_FIRST_RETRY_BLOCKS = 2n;
 const REVEAL_RETRY_BLOCKS = 15n;
+const REVEAL_RETRY_MAX_BLOCKS = 300n;
 /** How long it keeps checking before giving up on writing the reveal itself. */
 const REVEAL_PATIENCE_SECONDS = 86_400;
+/** After an HTTP 429 the watcher stops querying for a while, doubling up to 5 minutes. */
+const QUIET_FIRST_MS = 30_000;
+const QUIET_MAX_MS = 300_000;
 
 export interface Job {
   caseKey: Hex;
@@ -49,6 +54,8 @@ export interface Job {
   revealTx?: Hex;
   /** "revealing" only: the next block at which to check the threshold again. */
   retryAt?: bigint;
+  /** "revealing" only: checks made so far, which set the gap before the next one. */
+  retries?: number;
   note?: string;
 }
 
@@ -80,6 +87,8 @@ export class Watcher {
   private unwatch: (() => void) | null = null;
   private busy = false;
   private rescanQueued = false;
+  private quietUntil = 0;
+  private quietMs = 0;
 
   constructor(private readonly o: WatcherOptions) {
     if (!o.wallet.account) throw new Error("watcher wallet has no account");
@@ -91,13 +100,38 @@ export class Watcher {
     (this.o.log ?? ((m, d) => console.log(JSON.stringify({ t: new Date().toISOString(), msg: m, ...d }))))(msg, data);
   }
 
+  /** Whether queries are paused after a 429. */
+  get quiet() {
+    return Date.now() < this.quietUntil;
+  }
+
+  /**
+   * Runs one piece of query work unless queries are paused. A 429 pauses them, for 30 s at first and
+   * up to 5 minutes, so a spent budget is not spent again on refusals. Any other error is logged.
+   */
+  private async guarded(what: string, f: () => Promise<unknown>) {
+    if (this.quiet) return;
+    try {
+      await f();
+      this.quietMs = 0;
+    } catch (e) {
+      if (!isRateLimited(e)) {
+        this.log(`${what} failed`, { err: String(e).split("\n")[0] });
+        return;
+      }
+      this.quietMs = Math.min(this.quietMs ? this.quietMs * 2 : QUIET_FIRST_MS, QUIET_MAX_MS);
+      this.quietUntil = Date.now() + this.quietMs;
+      this.log(`${what} rate limited; pausing queries`, { seconds: this.quietMs / 1000 });
+    }
+  }
+
   async start() {
-    await this.heartbeat();
-    await this.rescan();
+    await this.guarded("heartbeat", () => this.heartbeat());
+    await this.guarded("rescan", () => this.rescan());
     this.subscribe();
-    this.timers.push(setInterval(() => void this.heartbeat().catch((e) => this.log("heartbeat failed", { err: String(e) })), LIFETIME.watcherHeartbeat * 1000));
-    this.timers.push(setInterval(() => void this.tick().catch((e) => this.log("tick failed", { err: String(e) })), this.o.tickMs ?? 4_000));
-    this.timers.push(setInterval(() => void this.rescan().catch((e) => this.log("rescan failed", { err: String(e) })), this.o.rescanMs ?? 60_000));
+    this.timers.push(setInterval(() => void this.guarded("heartbeat", () => this.heartbeat()), LIFETIME.watcherHeartbeat * 1000));
+    this.timers.push(setInterval(() => void this.tick().catch((e) => this.log("tick failed", { err: String(e).split("\n")[0] })), this.o.tickMs ?? 4_000));
+    this.timers.push(setInterval(() => void this.guarded("rescan", () => this.rescan()), this.o.rescanMs ?? 120_000));
     this.log("watcher started", { address: this.address, pubkey: this.pubkey, jobs: this.jobs.size });
   }
 
@@ -114,9 +148,17 @@ export class Watcher {
     const { pub, wallet } = this.o;
     const head = await pub.getBlockNumber();
     const until = head + blocks(LIFETIME.watcherLease);
-    if (this.leaseKey && (await getOne(pub, this.leaseKey))) {
-      await wallet.extendEntity({ entityKey: this.leaseKey, expires: ExpirationTime.atBlock(until) });
-      return;
+    if (this.leaseKey) {
+      // Extend without reading first: an extension of a lease that is gone fails at gas estimation,
+      // costs nothing, and falls through to taking out a new one.
+      try {
+        await wallet.extendEntity({ entityKey: this.leaseKey, expires: ExpirationTime.atBlock(until) });
+        return;
+      } catch (e) {
+        if (isRateLimited(e)) throw e;
+        this.log("lease not extended; looking for a live one", { lease: this.leaseKey, err: String(e).split("\n")[0] });
+        this.leaseKey = null;
+      }
     }
     // Reuse a lease that is still alive from an earlier run if it describes this process, otherwise
     // take out a new one and drop the stale ones.
@@ -242,19 +284,24 @@ export class Watcher {
         if (this.jobForClock(ev.entityKey)) {
           this.log("clock changed hands", { clock: ev.entityKey, to: ev.newOwner });
         }
-      },
-      onEntityCreated: () => {
-        // Events carry no attributes. Rather than fetch every entity on the network, coalesce
-        // creations into one job-list query.
-        if (this.rescanQueued) return;
-        this.rescanQueued = true;
-        setTimeout(() => {
-          this.rescanQueued = false;
-          void this.rescan().catch((e) => this.log("rescan failed", { err: String(e) }));
-        }, 3_000);
+        // Events carry no attributes, so a creation says nothing about whether it is a trigger, and
+        // rescanning on every creation on a busy network spends the whole query budget. A filing
+        // hands its case file and triggers to the sealed owner in its batch: that transfer is the
+        // signal. The periodic rescan covers anything the socket missed.
+        if (ev.newOwner.toLowerCase() === SEALED_OWNER.toLowerCase()) this.queueRescan();
       },
       onError: (e) => this.log("event stream error", { err: e.message.split("\n")[0] }),
     });
+  }
+
+  /** One job-list query for a burst of filings (a batch transfers several entities at once). */
+  private queueRescan() {
+    if (this.rescanQueued) return;
+    this.rescanQueued = true;
+    setTimeout(() => {
+      this.rescanQueued = false;
+      void this.guarded("rescan", () => this.rescan());
+    }, 3_000);
   }
 
   // ---------- the schedule ----------
@@ -268,9 +315,10 @@ export class Watcher {
       this.lastTickAt = Date.now();
       for (const job of this.jobs.values()) {
         if (job.state === "armed" && head >= job.expiresAt && head >= job.filedDeadline) job.state = "due";
-        if (job.state === "due") await this.handleDue(job, head);
-        else if (job.state === "revealing") await this.completeReveal(job, head);
-        else if (job.state === "deleted" && job.deletedAt !== undefined && head > job.deletedAt) await this.handleDeleted(job, head);
+        // A paused watcher only postpones: the lapse proof reads history, so it holds just as well later.
+        if (job.state === "due") await this.guarded("lapse check", () => this.handleDue(job, head));
+        else if (job.state === "revealing") await this.guarded("reveal check", () => this.completeReveal(job, head));
+        else if (job.state === "deleted" && job.deletedAt !== undefined && head > job.deletedAt) await this.guarded("withdrawal check", () => this.handleDeleted(job, head));
       }
     } finally {
       this.busy = false;
@@ -384,7 +432,9 @@ export class Watcher {
       job.state = "done";
       return;
     }
-    job.retryAt = head + REVEAL_RETRY_BLOCKS + this.stagger();
+    const gap = REVEAL_RETRY_BLOCKS << BigInt(Math.min(job.retries ?? 0, 5));
+    job.retries = (job.retries ?? 0) + 1;
+    job.retryAt = head + (gap < REVEAL_RETRY_MAX_BLOCKS ? gap : REVEAL_RETRY_MAX_BLOCKS) + this.stagger();
     const t = await this.revealIfThreshold(job, head);
     if (t.create) {
       const res = await this.o.wallet.executeBatch({ creates: [t.create] });

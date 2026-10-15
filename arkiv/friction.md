@@ -66,8 +66,13 @@ There is no `kind` and no app attribute.
 **Consequence:** a client cannot tell whether a new entity is relevant without fetching it, and every
 fetch is an `arkiv_query` (100 cost units). On a busy testnet that is a query storm.
 
+**What it cost us:** our first watchers coalesced creations into one job-list query every few
+seconds. On Tiramisu on 15 October, three of them spent an access key's monthly quota within hours
+(see F-19).
+
 **What we did:**
-- Our watchers coalesce creations into one job-list query every few seconds.
+- Watchers rescan when a filing hands entities to the sealed owner (`onOwnershipTransferred` with
+  `newOwner = 0x…dEaD`, which every filing does in its batch), plus a slow periodic rescan.
 - The web app refreshes only on creations whose indexed `owner` is a known author of the case.
 
 **Fix:** let a subscription filter by attribute (`app = "x"`), or include the attribute map in
@@ -273,6 +278,31 @@ chose our lifetimes for product meaning, not cost, and that turned out to be the
 **Fix:**
 - Cap the retry delay in the SDK's transport defaults.
 - Document the anonymous cost budget, and that `arkiv_query` costs 100 units (the `arkiv-cost` header).
+
+### F-19 · A spent key gives no warning, no JSON-RPC error and no reset time
+
+**Surface:** RPC with `X-API-KEY` (live on Tiramisu, 15 October).
+**Steps:** run three watchers on one key until its quota runs out (§1.2 explains how fast); then
+send `arkiv_query`, `eth_getLogs` and `eth_getBalance` with the key.
+
+**Actual:**
+- `arkiv_query` answers HTTP 429 with `{"error":"QUOTA_EXCEEDED","message":"quota exhausted"}`. That is
+  not a JSON-RPC error object, so clients report a bare "HTTP request failed".
+- There is no `Retry-After`. The quota resets with the calendar month (per the Arkiv team's own
+  indexer code; the public docs only say "monthly"), so a key spent mid-month stays spent through a
+  hackathon's judging.
+- `eth_getLogs` and `eth_getBalance` with the same key still answer 200. Only queries stop.
+- `Arkiv-Quota-Used-Percent` is sent on every keyed response, which is useful, but nothing reaches the
+  key's owner before 100%.
+
+**What we did:**
+- A transport that steps aside for ten minutes after a 429 on the key and lets the anonymous budget
+  take the call (viem `fallback`).
+- Watchers pause their queries after a 429, from 30 s up to 5 minutes, and no longer use the key.
+
+**Fix:**
+- Return a JSON-RPC error with a code, and set `Retry-After` to the period end.
+- Publish per-method costs under a key, and warn the owner at 80%.
 
 ### F-12 · Fundamentals claims non-Arkiv transactions revert; plain transfers succeed
 
