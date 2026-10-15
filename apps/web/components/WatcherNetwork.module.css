@@ -1,0 +1,68 @@
+.head { max-width: 820px; }
+.head :global(.h-page), .section :global(.h-section), .section :global(.steps) h3, .card h3, .empty h3 { word-spacing: 0.07em; }
+
+.strip {
+  margin-top: 36px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+  padding: 14px 0;
+  border-top: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.strip span { display: inline-flex; align-items: center; gap: 9px; }
+.strip b { font-weight: 500; color: var(--ink); }
+
+.cards { margin-top: 28px; display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 20px; }
+.card { display: grid; gap: 20px; align-content: start; transition: border-color 0.6s var(--ease); }
+.card.flash { border-color: rgb(var(--br-500) / 0.7); }
+.cardHead { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.cardHead h3 { display: flex; align-items: center; gap: 12px; font: 500 22px/1.15 var(--display); letter-spacing: -0.02em; overflow-wrap: anywhere; }
+
+.lease { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--hair); border-radius: var(--r-plate); background: rgb(var(--gm-950) / 0.5); }
+.leaseTop { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.count { font-size: 26px; font-weight: 500; color: rgb(var(--br-200)); letter-spacing: -0.02em; }
+.flash .count { color: rgb(var(--br-300)); }
+.meter { position: relative; height: 8px; border-radius: var(--r-round); background: rgb(var(--gm-100) / 0.07); overflow: visible; }
+.fill { position: absolute; inset: 0 auto 0 0; border-radius: var(--r-round); background: linear-gradient(90deg, rgb(var(--br-600)), rgb(var(--br-400))); transition: width 0.9s var(--ease); }
+.renewMark { position: absolute; top: -4px; bottom: -4px; width: 1px; background: rgb(var(--gm-100) / 0.35); }
+
+.kv { grid-template-columns: 112px 1fr; font-size: 13.5px; }
+
+.receipts { display: grid; gap: 10px; padding-top: 16px; border-top: 1px solid var(--hair); }
+.receiptsHead { display: flex; justify-content: space-between; align-items: center; }
+.receiptList { list-style: none; padding: 0; display: grid; gap: 0; }
+.receiptList li { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--hair); font-size: 12.5px; white-space: nowrap; }
+.receiptList li:last-child { border-bottom: 0; }
+.receiptList :global(.tag) { justify-self: start; }
+.caseLink { color: rgb(var(--gm-200)); border-bottom: 1px dotted rgb(var(--gm-100) / 0.3); justify-self: start; }
+.caseLink:hover { color: rgb(var(--br-300)); border-color: rgb(var(--br-300)); }
+
+.empty { margin-top: 28px; display: flex; gap: 24px; align-items: center; padding: 32px; }
+.empty h3 { font: 500 22px/1.2 var(--display); letter-spacing: -0.02em; margin-bottom: 6px; }
+.empty > div { min-width: 0; }
+.empty :global(.note) { overflow-wrap: anywhere; max-width: 640px; font-size: 14.5px; color: var(--soft); }
+.mark { flex: none; width: 54px; height: 54px; border-radius: 50%; border: 1px dashed rgb(var(--gm-500)); display: grid; place-items: center; }
+.markRust { border-color: rgb(var(--rust-500) / 0.7); }
+
+.section { margin-top: 110px; scroll-margin-top: 24px; }
+.status { display: grid; gap: 16px; align-content: start; }
+
+.run { margin-top: 8px; display: grid; grid-template-columns: 1fr 1.05fr; gap: 56px; align-items: start; }
+.commands { margin-top: 40px; display: grid; grid-template-columns: minmax(0, 0.62fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.env { margin-top: 18px; grid-template-columns: 176px 1fr; font-size: 14px; }
+.env dt { color: rgb(var(--br-300)); font-size: 12.5px; }
+.env dd { color: var(--soft); }
+
+@media (max-width: 860px) {
+  .cards { grid-template-columns: 1fr; }
+  .empty { flex-direction: column; align-items: flex-start; padding: 22px; gap: 16px; }
+  .run { grid-template-columns: 1fr; gap: 12px; }
+  .commands { grid-template-columns: 1fr; margin-top: 28px; }
+  .env { grid-template-columns: 1fr; }
+  .kv { grid-template-columns: 104px minmax(0, 1fr); gap: 8px 14px; }
+  .kv dd { margin-bottom: 0; }
+  .section { margin-top: 80px; }
+}

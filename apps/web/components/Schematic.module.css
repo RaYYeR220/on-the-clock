@@ -1,0 +1,98 @@
+.figure { margin-top: 44px; }
+.frame {
+  position: relative;
+  left: 50%;
+  width: min(1300px, calc(100vw - 80px));
+  translate: -50% 0;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-door);
+  background: linear-gradient(180deg, rgb(var(--gm-850) / 0.7), rgb(var(--gm-900) / 0.7));
+  padding: 28px 28px 20px;
+}
+.wide { display: block; width: 100%; height: auto; overflow: visible; }
+.tall { display: none; width: 100%; max-width: 440px; height: auto; margin: 0 auto; overflow: visible; }
+
+.legend {
+  list-style: none;
+  padding: 0;
+  margin-top: 28px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 22px 28px;
+}
+.legend li { display: grid; gap: 6px; align-content: start; font-size: 14px; color: var(--soft); text-wrap: pretty; }
+.legend b { display: flex; gap: 10px; align-items: baseline; font: 500 16px/1.2 var(--display); letter-spacing: -0.015em; word-spacing: 0.08em; color: var(--ink); }
+.legend b span { font: 500 11px var(--mono); color: rgb(var(--br-400)); letter-spacing: 0.06em; }
+
+@media (max-width: 1000px) {
+  .frame { left: auto; width: auto; translate: none; }
+  .wide { display: none; }
+  .tall { display: block; }
+  .legend { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 860px) {
+  .frame { padding: 16px 6px 10px; border-radius: 16px; }
+  .legend { grid-template-columns: 1fr; gap: 16px; }
+}
+
+/* svg paint */
+.rule { stroke: rgb(var(--gm-100) / 0.1); fill: none; }
+.ruleStrong { stroke: rgb(var(--gm-100) / 0.18); fill: none; }
+.colTick { stroke: rgb(var(--gm-100) / 0.08); fill: none; }
+.band { fill: rgb(var(--gm-100) / 0.022); stroke: rgb(var(--gm-100) / 0.1); }
+.bar { fill: rgb(var(--br-500)); }
+.barEdge { fill: none; stroke: rgb(var(--br-500)); }
+.hatch { fill: rgb(var(--br-500) / 0.75); }
+.ghost { fill: none; stroke: rgb(var(--gm-500)); stroke-dasharray: 2 3; }
+.trigger { fill: rgb(var(--gm-300) / 0.7); }
+.deadline { stroke: rgb(var(--br-500) / 0.7); stroke-dasharray: 3 4; fill: none; }
+.filed { stroke: rgb(var(--gm-300) / 0.5); stroke-dasharray: 2 3; fill: none; }
+.fadeStart { stop-color: rgb(var(--gm-300)); stop-opacity: 0.7; }
+.fadeEnd { stop-color: rgb(var(--gm-300)); stop-opacity: 0; }
+.lease { stroke: rgb(var(--gm-100) / 0.22); fill: none; }
+.leaseOff { stroke: rgb(var(--gm-600)); fill: none; stroke-dasharray: 1 3; }
+.lampOn { fill: rgb(var(--br-500)); }
+.lampOff { fill: rgb(var(--gm-600)); }
+.dot { fill: rgb(var(--br-300)); }
+.redact { fill: rgb(var(--gm-500)); }
+
+.arrow { fill: none; stroke-width: 1.2; }
+.arrowInk { stroke: rgb(var(--gm-300)); }
+.arrowBrass { stroke: rgb(var(--br-400)); }
+.arrowRust { stroke: rgb(var(--rust-500)); }
+.dotted { stroke-dasharray: 2 3; }
+.markInk { fill: rgb(var(--gm-300)); }
+.markBrass { fill: rgb(var(--br-400)); }
+.markRust { fill: rgb(var(--rust-500)); }
+.cross { stroke: rgb(var(--rust-500)); stroke-width: 1.6; stroke-linecap: round; }
+.responder { fill: rgb(var(--gm-950)); stroke: rgb(var(--br-400)); stroke-dasharray: 2 2; }
+
+.chip { fill: rgb(var(--gm-950) / 0.9); stroke: rgb(var(--gm-100) / 0.24); }
+.chipBrass { fill: rgb(var(--br-900) / 0.7); stroke: rgb(var(--br-500) / 0.85); }
+.chipRust { fill: rgb(var(--rust-700) / 0.22); stroke: rgb(var(--rust-500) / 0.7); }
+.lock { fill: none; stroke: var(--muted); stroke-width: 1.2; }
+
+/* svg type */
+.tStep { font: 500 11px var(--mono); fill: rgb(var(--br-400)); letter-spacing: 0.06em; }
+.tVerb { font: 500 16px var(--display); fill: var(--ink); letter-spacing: -0.01em; word-spacing: 0.1em; }
+.tVerbTall { font: 500 18px var(--display); fill: var(--ink); letter-spacing: -0.01em; word-spacing: 0.1em; }
+.tLane { font: 500 10px var(--mono); fill: var(--muted); letter-spacing: 0.14em; }
+.tLaneSub { font: 400 11.5px var(--sans); fill: rgb(var(--gm-500)); }
+.tBody { font: 500 12.5px var(--sans); fill: rgb(var(--gm-200)); }
+.tBodyTall { font: 500 13.5px var(--sans); fill: rgb(var(--gm-200)); }
+.tSoft { font: 400 12.5px var(--sans); fill: var(--soft); }
+.tMono { font: 400 10px var(--mono); fill: var(--soft); }
+.tMute { font: 400 10px var(--mono); fill: var(--muted); }
+.tBrass { font: 500 10px var(--mono); fill: rgb(var(--br-300)); }
+.tKey { font: 500 12px var(--mono); fill: rgb(var(--br-300)); }
+.tRust { font: 500 10px var(--mono); fill: rgb(var(--rust-300)); }
+.tChip { font: 500 12px var(--sans); fill: var(--ink); }
+.tChipBrass { font: 500 12px var(--sans); fill: rgb(var(--br-200)); }
+.tChipRust { font: 500 11px var(--mono); fill: rgb(var(--rust-300)); }
+.tChipSub { font: 400 10px var(--mono); fill: var(--muted); }
+.tAxis { font: 400 10px var(--mono); fill: var(--muted); }
+.tAxisBrass { font: 500 10px var(--mono); fill: rgb(var(--br-300)); letter-spacing: 0.08em; }
+
+/* the tall composition renders near 1:1 on a phone, so its small type steps up a size */
+.tall .tMono, .tall .tMute, .tall .tBrass, .tall .tRust, .tall .tChipSub, .tall .tAxis, .tall .tAxisBrass { font-size: 11px; }
+.tall .tLane { font-size: 10.5px; }
