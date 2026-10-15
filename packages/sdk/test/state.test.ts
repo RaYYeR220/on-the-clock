@@ -159,6 +159,33 @@ describe("deriveCase", () => {
     expect(deriveCase({ caseEntity: theCase, related: [], clock: wrongKey, head: 1200n }).clock.live).toBe(false);
   });
 
+  it("a grant record the chain never applied cannot make honest receipts look premature", () => {
+    // The researcher writes a grant claiming block 5000 but never extends the clock on chain.
+    const fake = ent("grant", R, 500, { v: 1, expiresAt: "5000" }, { ...on, seconds: 99n });
+    const r1 = ent("receipt", W1, 1001, { v: 1, outcome: "lapsed", share: "0x01", observed: { head: "1001", expiresAt: "1000" } }, { ...on, outcome: "lapsed" });
+    const r2 = ent("receipt", W2, 1002, { v: 1, outcome: "lapsed", share: "0x02", observed: { head: "1002", expiresAt: "1000" } }, { ...on, outcome: "lapsed" });
+    const byRecords = deriveCase({ caseEntity: theCase, related: [fake, r1, r2], clock: null, head: 1100n });
+    expect(byRecords.effectiveExpirySource).toBe("records");
+    expect(byRecords.receipts.premature).toHaveLength(2);
+    const byChain = deriveCase({ caseEntity: theCase, related: [fake, r1, r2], clock: null, head: 1100n, chainExpiry: 1000n });
+    expect(byChain.effectiveExpirySource).toBe("chain-logs");
+    expect(byChain.receipts.premature).toHaveLength(0);
+    expect(byChain.status).toBe("revealable");
+    expect(byChain.unexecutedGrants).toEqual([fake.key]);
+  });
+
+  it("chain evidence can never pull the deadline below the filed one", () => {
+    const early = ent("receipt", W1, 800, { v: 1, outcome: "lapsed", share: "0x01", observed: { head: "800", expiresAt: "700" } }, { ...on, outcome: "lapsed" });
+    const v = deriveCase({ caseEntity: theCase, related: [early], clock: null, head: 1100n, chainExpiry: 700n });
+    expect(v.effectiveExpiry).toBe(1000n);
+    expect(v.receipts.premature).toEqual([W1]);
+  });
+
+  it("flags a live clock whose on-chain owner is not the recorded custodian", () => {
+    expect(deriveCase({ caseEntity: theCase, related: [], clock: clock(R), head: 200n }).custodyMismatch).toBe(false);
+    expect(deriveCase({ caseEntity: theCase, related: [], clock: clock(C), head: 200n }).custodyMismatch).toBe(true);
+  });
+
   it("the timeline is chronological and starts with the filing", () => {
     const a = ent("ack", V, 300, { v: 1 }, on);
     const f = ent("fixed", V, 400, { v: 1 }, on);

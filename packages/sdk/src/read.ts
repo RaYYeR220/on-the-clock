@@ -1,6 +1,6 @@
 // Every read the app makes. Each one is a single Arkiv query (plus cursor pages), written out in
 // /arkiv/schema.md so anyone can run it without our backend.
-import { NoEntityFoundError, type PublicArkivClient } from "@arkiv-network/sdk";
+import { ENTITY_EVENTS_ABI, NoEntityFoundError, type PublicArkivClient } from "@arkiv-network/sdk";
 import { addr, key, str, u64 } from "@arkiv-network/sdk/attr";
 import { and, eq, lte, or, type Expression } from "@arkiv-network/sdk/query";
 import type { Address, Hex } from "viem";
@@ -12,6 +12,42 @@ import { deriveCase, isCaseClock, type CaseView } from "./state.js";
 import type { CasePayload, InboxPayload, OtcEntity, RevealPayload, WatcherPayload } from "./types.js";
 
 export const app = () => eq("app", str(APP));
+
+const ARKIV = "0x4400000000000000000000000000000000000044" as const;
+const CREATED = ENTITY_EVENTS_ABI.find((e) => e.name === "EntityCreated")!;
+const EXTENDED = ENTITY_EVENTS_ABI.find((e) => e.name === "ExpiryExtended")!;
+
+/**
+ * The clock's last on-chain expiry, from its own logs: the EntityCreated expiry, raised by every
+ * ExpiryExtended. This is what the chain actually did, independent of anyone's records. Returns
+ * undefined when the logs cannot be read (e.g. the RPC refuses the range).
+ */
+export async function clockChainExpiry(pub: PublicArkivClient, clockKey: Hex, fromBlock: bigint): Promise<bigint | undefined> {
+  const toBlock = await pub.getBlockNumber();
+  const read = async (from: bigint, to: bigint) => {
+    const [created, extended] = await Promise.all([
+      pub.getLogs({ address: ARKIV, event: CREATED, args: { entityKey: clockKey }, fromBlock: from, toBlock: to }),
+      pub.getLogs({ address: ARKIV, event: EXTENDED, args: { entityKey: clockKey }, fromBlock: from, toBlock: to }),
+    ]);
+    return [...created, ...extended].map((l) => (l.args as { expiresAt?: bigint }).expiresAt ?? 0n);
+  };
+  let values: bigint[];
+  try {
+    values = await read(fromBlock, toBlock);
+  } catch {
+    // Fall back to fixed windows if the RPC limits the range.
+    values = [];
+    try {
+      for (let from = fromBlock; from <= toBlock; from += 50_000n) {
+        const to = from + 49_999n < toBlock ? from + 49_999n : toBlock;
+        values.push(...(await read(from, to)));
+      }
+    } catch {
+      return undefined;
+    }
+  }
+  return values.length ? values.reduce((a, b) => (b > a ? b : a), 0n) : undefined;
+}
 export const kindIs = (k: Kind) => eq("kind", str(k));
 
 export interface FetchOptions {
@@ -71,11 +107,13 @@ export async function loadCase(pub: PublicArkivClient, caseKey: Hex): Promise<Ca
   const caseEntity = all.find((e) => e.kind === "case" && e.key.toLowerCase() === caseKey.toLowerCase()) as OtcEntity<CasePayload> | undefined;
   if (!caseEntity) return null;
   const inboxes = await inboxesFor(pub, caseEntity, all);
+  const liveClock = all.find((e) => isCaseClock(caseEntity, e)) ?? null;
+  const chainExpiry = liveClock ? undefined : await clockChainExpiry(pub, caseEntity.payload.clock, caseEntity.createdAt);
   // The clock is the entity the case file committed to, by the same author. Anything else that
   // calls itself a clock for this case is noise someone else wrote.
   const clock = all.find((e) => isCaseClock(caseEntity, e)) ?? null;
   const related = all.filter((e) => e !== caseEntity && e !== clock);
-  return { view: deriveCase({ caseEntity, related, clock, head, inboxes }), caseEntity, related, clock, head };
+  return { view: deriveCase({ caseEntity, related, clock, head, inboxes, ...(chainExpiry !== undefined ? { chainExpiry } : {}) }), caseEntity, related, clock, head };
 }
 
 /**
@@ -126,7 +164,14 @@ export async function loadBoard(pub: PublicArkivClient): Promise<Board> {
     const rel = byCase.get(e.key.toLowerCase()) ?? [];
     const clock = rel.find((r) => isCaseClock(caseEntity, r)) ?? null;
     const related = rel.filter((r) => r !== clock);
-    cases.push({ view: deriveCase({ caseEntity, related, clock, head, inboxes }), caseEntity, related, clock, head });
+    const chainExpiry = clock ? undefined : await clockChainExpiry(pub, caseEntity.payload.clock, caseEntity.createdAt);
+    cases.push({
+      view: deriveCase({ caseEntity, related, clock, head, inboxes, ...(chainExpiry !== undefined ? { chainExpiry } : {}) }),
+      caseEntity,
+      related,
+      clock,
+      head,
+    });
   }
   return {
     head,

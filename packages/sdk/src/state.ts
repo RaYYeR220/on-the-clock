@@ -42,8 +42,21 @@ export interface CaseView {
   clock: { key: Hex; live: boolean; owner: Address | null; expiresAt: bigint };
   /** The deadline the records support: the filing deadline, moved only by verified grants. */
   expectedExpiry: bigint;
+  /** The deadline written into the sealed case file. Nothing about the case can move it earlier. */
+  filedDeadline: bigint;
+  /**
+   * The deadline receipts are judged against. The chain is authoritative: the live clock's expiry, or
+   * (once it is gone) the last expiry the chain's ExpiryExtended/EntityCreated logs show. Records are
+   * only a fallback when no chain evidence was supplied.
+   */
+  effectiveExpiry: bigint;
+  effectiveExpirySource: "clock" | "chain-logs" | "records";
   /** True when the live clock runs later than any verified grant explains. */
   unrecordedExtension: boolean;
+  /** Verified grants claiming an expiry the chain never applied (a grant record with no extension behind it). */
+  unexecutedGrants: Hex[];
+  /** The live clock's on-chain owner differs from the custodian the handoff records point to. */
+  custodyMismatch: boolean;
   blocksLeft: bigint;
   custodian: Address;
   status: CaseStatus;
@@ -87,6 +100,11 @@ export interface DeriveInput {
   /** Inboxes available for checking who a reveal names (optional; without them attribution is "unknown"). */
   inboxes?: OtcEntity<InboxPayload>[];
   /**
+   * The clock's last on-chain expiry, read from its EntityCreated/ExpiryExtended logs. Supply it once the
+   * clock is gone so receipts are judged against what the chain did rather than what records claim.
+   */
+  chainExpiry?: bigint;
+  /**
    * The live clock, or null once it has lapsed or been deleted. Only the entity whose key the case
    * file committed to, written by the case's researcher, is accepted; anything else is treated as absent.
    */
@@ -103,7 +121,7 @@ export function isCaseClock(caseEntity: OtcEntity<CasePayload>, e: OtcEntity | n
   return !!e && e.kind === "clock" && e.key.toLowerCase() === caseEntity.payload.clock.toLowerCase() && eqAddr(e.creator, caseEntity.creator);
 }
 
-export function deriveCase({ caseEntity, related, clock: candidate, head, inboxes }: DeriveInput): CaseView {
+export function deriveCase({ caseEntity, related, clock: candidate, head, inboxes, chainExpiry }: DeriveInput): CaseView {
   const p = caseEntity.payload;
   const clock = isCaseClock(caseEntity, candidate) ? candidate : null;
   const researcher = caseEntity.creator;
@@ -117,7 +135,9 @@ export function deriveCase({ caseEntity, related, clock: candidate, head, inboxe
 
   // Pass 1: custody chain and the deadline it supports.
   let custodian: Address = researcher;
-  let expectedExpiry = BigInt(p.deadlineBlock);
+  const filedDeadline = BigInt(p.deadlineBlock);
+  let expectedExpiry = filedDeadline;
+  const grants: { key: Hex; to: bigint }[] = [];
   const verdicts = new Map<Hex, { verdict: Verdict; reason?: string }>();
   const extensions = { requested: 0, granted: 0, seconds: 0 };
   let ackedAt: bigint | undefined;
@@ -146,7 +166,13 @@ export function deriveCase({ caseEntity, related, clock: candidate, head, inboxe
         verdicts.set(e.key, { verdict: "verified" });
         extensions.granted++;
         extensions.seconds += num(e.attrs.seconds);
-        const to = BigInt((e.payload as GrantPayload).expiresAt ?? 0);
+        let to = 0n;
+        try {
+          to = BigInt((e.payload as GrantPayload).expiresAt ?? 0);
+        } catch {
+          to = 0n;
+        }
+        grants.push({ key: e.key, to });
         if (to > expectedExpiry) expectedExpiry = to;
         break;
       }
@@ -167,6 +193,13 @@ export function deriveCase({ caseEntity, related, clock: candidate, head, inboxe
   const live = clock !== null;
   const clockExpiry = clock ? clock.expiresAt : expectedExpiry;
   const unrecordedExtension = live && clockExpiry > expectedExpiry;
+  const effectiveExpirySource: CaseView["effectiveExpirySource"] = clock ? "clock" : chainExpiry !== undefined ? "chain-logs" : "records";
+  // Never earlier than the filed deadline, whatever any source says.
+  const rawEffective = clock ? clock.expiresAt : chainExpiry ?? expectedExpiry;
+  const effectiveExpiry = rawEffective > filedDeadline ? rawEffective : filedDeadline;
+  const chainKnown = effectiveExpirySource !== "records";
+  const unexecutedGrants = chainKnown ? grants.filter((g) => g.to > effectiveExpiry).map((g) => g.key) : [];
+  const custodyMismatch = !!clock && !eqAddr(clock.owner, custodian);
 
   // Pass 2: receipts and reveals, judged against the deadline the records support.
   const receipts = { valid: 0, premature: [] as Address[], foreign: [] as Address[], withdrawn: 0, conflicting: [] as Address[] };
@@ -186,7 +219,7 @@ export function deriveCase({ caseEntity, related, clock: candidate, head, inboxe
         continue;
       }
       if (rp.outcome === "lapsed") {
-        if (e.createdAt < expectedExpiry) {
+        if (e.createdAt < effectiveExpiry) {
           receipts.premature.push(e.creator);
           verdicts.set(e.key, { verdict: "premature", reason: "published before the deadline the records support" });
           continue;
@@ -238,7 +271,7 @@ export function deriveCase({ caseEntity, related, clock: candidate, head, inboxe
     status = "revealed";
   } else if (receipts.valid >= p.k) {
     status = "revealable";
-  } else if (head < expectedExpiry || receipts.withdrawn >= p.k) {
+  } else if (head < effectiveExpiry || receipts.withdrawn >= p.k) {
     status = "withdrawn";
   } else {
     status = "lapsed";
@@ -266,7 +299,12 @@ export function deriveCase({ caseEntity, related, clock: candidate, head, inboxe
     watchers,
     clock: { key: p.clock, live, owner: clock?.owner ?? null, expiresAt: clockExpiry },
     expectedExpiry,
+    filedDeadline,
+    effectiveExpiry,
+    effectiveExpirySource,
     unrecordedExtension,
+    unexecutedGrants,
+    custodyMismatch,
     blocksLeft: live && clockExpiry > head ? clockExpiry - head : 0n,
     custodian,
     status,
@@ -278,7 +316,7 @@ export function deriveCase({ caseEntity, related, clock: candidate, head, inboxe
     receipts,
     shares,
     ...(reveal ? { reveal } : {}),
-    revealedEarly: !!reveal && reveal.payload.by === "watchers" && reveal.createdAt < expectedExpiry,
+    revealedEarly: !!reveal && reveal.payload.by === "watchers" && reveal.createdAt < effectiveExpiry,
     ...attribute(reveal, revealBundle, inboxes),
     // A reveal only counts after its key passed the responder-binding check above.
     responderBound: reveal ? true : null,

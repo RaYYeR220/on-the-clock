@@ -11,5 +11,9 @@
     "@arkiv-network/sdk": "0.8.1",
     "on-the-clock-sdk": "workspace:*",
     "viem": "^2.57.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "typescript": "^7.0.2"
   }
 }
