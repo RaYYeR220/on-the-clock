@@ -46,7 +46,7 @@ export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function log(step: string, data: Record<string, unknown> = {}) {
   const extra = Object.entries(data)
-    .map(([k, v]) => `${k}=${typeof v === "bigint" ? v.toString() : String(v)}`)
+    .map(([k, v]) => `${k}=${typeof v === "object" && v !== null ? JSON.stringify(v, (_, x) => (typeof x === "bigint" ? x.toString() : x)) : String(v)}`)
     .join(" ");
   console.log(`${new Date().toISOString().slice(11, 19)}  ${step}${extra ? `  ${extra}` : ""}`);
 }

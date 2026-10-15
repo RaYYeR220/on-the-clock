@@ -4,7 +4,8 @@
 // case, follows the clock over WebSocket (extensions move its schedule, a delete means withdrawal),
 // and at the deadline proves the clock lapsed on its own: alive one block before expiry, gone now,
 // and no delete in the logs. Then it publishes its share in a receipt. The watcher that brings the
-// count to k also publishes the reveal in the same batch.
+// count to k also publishes the reveal in the same batch. When k watchers publish in the same block,
+// none of them sees the threshold yet, so each one keeps checking and writes the reveal once it can.
 import { ENTITY_EVENTS_ABI, ExpirationTime, type PublicArkivClient, type WalletArkivClient } from "@arkiv-network/sdk";
 import { addr, key, str, u64 } from "@arkiv-network/sdk/attr";
 import { eq } from "@arkiv-network/sdk/query";
@@ -22,7 +23,12 @@ export const ARKIV_ADDRESS: Address = "0x440000000000000000000000000000000000004
 const ENTITY_DELETED = ENTITY_EVENTS_ABI.find((e) => e.name === "EntityDeleted")!;
 const JSON_TYPE = "application/json";
 
-export type JobState = "armed" | "due" | "deleted" | "done" | "failed";
+export type JobState = "armed" | "due" | "deleted" | "revealing" | "done" | "failed";
+
+/** How often a watcher whose receipt went out without the reveal checks the threshold again (30 s). */
+const REVEAL_RETRY_BLOCKS = 15n;
+/** How long it keeps checking before giving up on writing the reveal itself. */
+const REVEAL_PATIENCE_SECONDS = 86_400;
 
 export interface Job {
   caseKey: Hex;
@@ -37,6 +43,8 @@ export interface Job {
   outcome?: Outcome;
   receiptTx?: Hex;
   revealTx?: Hex;
+  /** "revealing" only: the next block at which to check the threshold again. */
+  retryAt?: bigint;
   note?: string;
 }
 
@@ -143,7 +151,10 @@ export class Watcher {
   private async addTrigger(t: OtcEntity): Promise<boolean> {
     if (this.rejected.has(t.key.toLowerCase())) return false;
     const caseKey = String(t.attrs.case).toLowerCase() as Hex;
-    if (this.jobs.has(caseKey)) return false;
+    const existing = this.jobs.get(caseKey);
+    if (existing?.triggerKey.toLowerCase() === t.key.toLowerCase()) return false;
+    // A second trigger for a case we already follow is still checked, so a copy is refused on the
+    // record rather than skipped without a trace.
     const reject = (reason: string) => {
       this.rejected.add(t.key.toLowerCase());
       this.log("trigger rejected", { trigger: t.key, reason });
@@ -163,11 +174,17 @@ export class Watcher {
     } catch {
       return reject("share does not open for this case, clock and watcher");
     }
+    if (existing) {
+      // Genuine but redundant: keep the job we have and stop re-checking this one.
+      this.rejected.add(t.key.toLowerCase());
+      return false;
+    }
     const job: Job = { caseKey, clockKey, triggerKey: t.key, share, filedDeadline: BigInt(p.deadlineBlock), expiresAt: BigInt(p.deadlineBlock), state: "armed" };
     const done = await this.myReceipt(caseKey);
     if (done) {
-      job.state = "done";
       job.outcome = (done.payload as ReceiptPayload).outcome;
+      // A lapse we already reported may still be waiting for its reveal (we restarted mid-way).
+      job.state = job.outcome === "lapsed" ? "revealing" : "done";
     } else {
       const clock = await getOne(this.o.pub, clockKey);
       if (isCaseClock(caseEntity, clock)) job.expiresAt = clock.expiresAt;
@@ -238,6 +255,7 @@ export class Watcher {
       for (const job of this.jobs.values()) {
         if (job.state === "armed" && head >= job.expiresAt && head >= job.filedDeadline) job.state = "due";
         if (job.state === "due") await this.handleDue(job, head);
+        else if (job.state === "revealing") await this.completeReveal(job, head);
         else if (job.state === "deleted" && job.deletedAt !== undefined && head > job.deletedAt) await this.handleDeleted(job, head);
       }
     } finally {
@@ -306,36 +324,67 @@ export class Watcher {
     };
 
     const creates: Parameters<WalletArkivClient["executeBatch"]>[0]["creates"] = [receipt];
+    let waiting = false;
     if (outcome === "lapsed") {
-      const reveal = await this.revealIfThreshold(job, head);
-      if (reveal) creates!.push(reveal);
+      const t = await this.revealIfThreshold(job, head);
+      if (t.create) creates!.push(t.create);
+      else waiting = !t.settled;
     }
     const res = await wallet.executeBatch({ creates });
-    job.state = "done";
+    job.state = waiting ? "revealing" : "done";
+    if (waiting) job.retryAt = head + this.retryOffset();
     job.outcome = outcome;
     job.receiptTx = res.txHash;
     if ((creates?.length ?? 0) > 1) job.revealTx = res.txHash;
     this.log(`receipt published: ${outcome}`, { case: job.caseKey, tx: res.txHash, withReveal: (creates?.length ?? 0) > 1 });
   }
 
-  /** If our share completes the threshold, build the reveal so it lands in the same batch as the receipt. */
-  private async revealIfThreshold(job: Job, head: bigint) {
+  /**
+   * If the shares on record plus ours reach the threshold, build the reveal so it lands in the same
+   * batch as the receipt. `settled` means there is nothing left to do: a valid reveal already exists,
+   * or the case file is gone.
+   */
+  private async revealIfThreshold(job: Job, head: bigint): Promise<{ settled: boolean; create?: ReturnType<typeof revealCreate> }> {
     const { pub } = this.o;
     const caseEntity = await getOne<CasePayload>(pub, job.caseKey);
-    if (!caseEntity) return null;
+    if (!caseEntity) return { settled: true };
     const related = await fetchAll(pub, [app(), eq("case", key(job.caseKey))]);
     const view = deriveCase({ caseEntity, related: related.filter((e) => e.kind !== "clock"), clock: null, head });
-    if (view.reveal) return null;
-    const shares = [...view.shares, job.share];
-    if (new Set(shares.map((s) => s.toLowerCase())).size < view.k) return null;
+    if (view.reveal) return { settled: true };
+    const shares = [...new Set([...view.shares, job.share].map((s) => s.toLowerCase() as Hex))];
+    if (shares.length < view.k) return { settled: false };
     const k = await reconstruct(job.caseKey, caseEntity.payload, shares);
-    if (!k) return null;
+    if (!k) return { settled: false };
     const check = verifyRevealKey(job.caseKey, caseEntity.payload, k);
     if (!check.ok || !check.bundle) {
       this.log("reconstructed key failed verification; not revealing", { case: job.caseKey, checks: check.checks });
-      return null;
+      return { settled: false };
     }
-    return revealCreate(job.caseKey, k, "watchers", check.bundle.vendor, check.bundle.inbox);
+    return { settled: false, create: revealCreate(job.caseKey, k, "watchers", check.bundle.vendor, check.bundle.inbox) };
+  }
+
+  /** Our receipt went out before the threshold was visible. Write the reveal once it is, unless someone already has. */
+  private async completeReveal(job: Job, head: bigint) {
+    if (job.retryAt !== undefined && head < job.retryAt) return;
+    if (head > job.expiresAt + blocks(REVEAL_PATIENCE_SECONDS)) {
+      job.state = "done";
+      return;
+    }
+    job.retryAt = head + this.retryOffset();
+    const t = await this.revealIfThreshold(job, head);
+    if (t.create) {
+      const res = await this.o.wallet.executeBatch({ creates: [t.create] });
+      job.revealTx = res.txHash;
+      job.state = "done";
+      this.log("reveal published", { case: job.caseKey, tx: res.txHash });
+    } else if (t.settled) {
+      job.state = "done";
+    }
+  }
+
+  /** Watchers that missed the threshold together retry a few blocks apart, so one reveal is usually enough. */
+  private retryOffset() {
+    return REVEAL_RETRY_BLOCKS + (BigInt(`0x${this.address.slice(-2)}`) % 8n);
   }
 
   status() {
