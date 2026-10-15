@@ -1,0 +1,41 @@
+.head { max-width: 820px; }
+.title { word-spacing: 0.06em; }
+.top { margin-top: 40px; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.6fr); gap: 28px; align-items: start; }
+
+.inbox {
+  border: 1px solid var(--hair);
+  border-radius: var(--r-door);
+  padding: 22px 24px;
+  background: linear-gradient(180deg, rgb(var(--gm-850) / 0.86), rgb(var(--gm-900) / 0.86));
+}
+.inbox h2 { font: 500 26px/1.15 var(--display); letter-spacing: -0.025em; word-spacing: 0.06em; }
+.inboxHead { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.inboxHead h2 { margin-top: 10px; }
+.pick { width: auto; max-width: 280px; }
+.kv { display: grid; grid-template-columns: 110px 1fr; gap: 8px 18px; margin-top: 18px; font-size: 14px; }
+.kv dt { color: var(--muted); font-size: 13px; }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.kv b { font-weight: 500; }
+
+.form { margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+.wide { grid-column: 1 / -1; }
+.label { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+
+.cases { margin-top: 56px; }
+.casesHead { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--hair); margin-bottom: 18px; }
+.casesHead h2 { font: 500 26px/1.1 var(--display); letter-spacing: -0.025em; word-spacing: 0.06em; }
+.list { display: grid; gap: 18px; }
+.empty { padding: 18px; border: 1px dashed var(--hair-strong); border-radius: 14px; display: grid; gap: 12px; justify-items: start; color: var(--soft); font-size: 14.5px; }
+
+@media (max-width: 1020px) {
+  .top { grid-template-columns: 1fr; }
+}
+@media (max-width: 860px) {
+  .top { margin-top: 28px; }
+  .inbox { padding: 18px 16px; border-radius: 16px; }
+  .kv { grid-template-columns: 1fr; gap: 2px; }
+  .kv dd { margin-bottom: 8px; }
+  .form { grid-template-columns: 1fr; }
+  .cases { margin-top: 40px; }
+  .casesHead h2 { font-size: 22px; }
+}

@@ -1,0 +1,40 @@
+.dial { position: relative; width: min(100%, 400px); aspect-ratio: 1; margin: 0 auto; container-type: inline-size; }
+.dial svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.tick { transition: stroke 0.6s var(--ease), stroke-opacity 0.6s var(--ease); }
+.arc { transition: stroke-dasharray 0.3s linear; }
+.face {
+  position: absolute; inset: 22%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  text-align: center;
+}
+.label { font-size: max(9.5px, 2.6cqi); letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); max-width: 18ch; }
+.time {
+  font: 500 15cqi/0.92 var(--display);
+  letter-spacing: -0.03em;
+  font-feature-settings: "tnum" 1;
+  color: var(--ink);
+}
+.timeOpen { color: rgb(var(--br-300)); text-transform: uppercase; letter-spacing: 0.02em; font-size: 13cqi; }
+.sub { font-size: 11.5px; color: rgb(var(--gm-500)); }
+.idle .time { color: rgb(var(--gm-400)); }
+.lapsed .time { color: rgb(var(--gm-300)); animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.45; } }
+.open svg { animation: settle 0.9s var(--ease) both; }
+@keyframes settle { from { transform: rotate(-24deg); } to { transform: none; } }
+
+.mv { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; flex: 1 1 0; }
+.mv svg { width: 58px; height: 58px; overflow: visible; }
+.hand { transform-origin: 0 0; transform: rotate(0deg); }
+.mv_armed .hand, .mv_waiting .hand { animation: sweep 6s linear infinite; }
+.mv_checking .hand { animation: sweep 1.6s linear infinite; }
+.mv_released .hand { transition: transform 0.8s var(--ease); transform: rotate(0deg); }
+@keyframes sweep { to { transform: rotate(360deg); } }
+.mvLabel { display: flex; align-items: center; gap: 7px; font: 500 10.5px/1.2 var(--mono); letter-spacing: 0.04em; color: var(--soft); white-space: nowrap; }
+.mvLabel :global(.lamp) { width: 5px; height: 5px; box-shadow: none; }
+.mvState { max-width: 13ch; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); text-align: center; text-wrap: balance; }
+.mv_released .mvState { color: rgb(var(--br-300)); }
+
+@media (max-width: 860px) {
+  .dial { width: min(100%, 250px); }
+  .mv svg { width: 48px; height: 48px; }
+}

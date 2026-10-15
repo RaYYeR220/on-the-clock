@@ -1,0 +1,67 @@
+.error {
+  margin-top: 14px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--hair-strong);
+  border-left: 3px solid rgb(var(--gm-300));
+  border-radius: var(--r-plate);
+  background: rgb(var(--gm-950) / 0.55);
+}
+.errorHead { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; color: var(--ink); }
+.errorMark {
+  display: inline-grid; place-items: center;
+  width: 18px; height: 18px;
+  border: 1.5px solid currentColor; border-radius: var(--r-round);
+  font: 600 11px/1 var(--mono);
+}
+.errorBody { margin-top: 6px; font-size: 14px; color: var(--soft); overflow-wrap: anywhere; }
+.errorTx { margin-top: 6px; font-size: 13px; color: var(--muted); }
+
+.receipts { display: grid; gap: 2px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--hair-strong); }
+.txRow { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; padding: 5px 0; font-size: 13px; }
+.txRow > span:first-child { color: var(--muted); }
+
+.spinner {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--r-round);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.refusal {
+  position: relative;
+  margin-top: 16px;
+  padding: 26px 24px 20px;
+  border: 1px solid rgb(var(--rust-500) / 0.5);
+  border-radius: 16px;
+  background:
+    repeating-linear-gradient(-45deg, rgb(var(--rust-500) / 0.06) 0 2px, transparent 2px 12px),
+    rgb(var(--rust-700) / 0.1);
+}
+.stampWrap { display: flex; justify-content: flex-start; padding: 6px 0 16px; }
+/* Worn ink: mostly solid, with the speckle of a real rubber stamp. */
+.bigStamp {
+  font-size: clamp(20px, 3.4vw, 34px);
+  letter-spacing: 0.12em;
+  padding: 12px 20px 10px;
+  border-width: 3px;
+  border-radius: 4px;
+  opacity: 1;
+  text-shadow: 0 0 18px rgb(var(--rust-500) / 0.35);
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1.6 0 0 0 1.75'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mask-size: 180px;
+}
+.refusalBody { font-size: 15px; color: var(--soft); max-width: 620px; }
+.refusalBody b { color: var(--ink); font-weight: 500; }
+.refusalErr { margin-top: 14px; white-space: pre-wrap; overflow-wrap: anywhere; color: rgb(var(--rust-300)); border-color: rgb(var(--rust-500) / 0.3); }
+.refusal .txRow { margin-top: 8px; }
+.compact { padding: 18px 18px 14px; }
+.compact .bigStamp { font-size: 20px; padding: 9px 14px 7px; }
+.compact .stampWrap { padding: 2px 0 12px; }
+
+@media (max-width: 860px) {
+  .refusal { padding: 20px 16px 16px; }
+  .txRow { flex-direction: column; gap: 2px; }
+}

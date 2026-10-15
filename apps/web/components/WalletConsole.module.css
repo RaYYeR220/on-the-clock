@@ -1,0 +1,27 @@
+.card {
+  border: 1px solid var(--hair);
+  border-radius: 18px;
+  padding: 20px 22px 18px;
+  background: linear-gradient(180deg, rgb(var(--gm-850) / 0.86), rgb(var(--gm-900) / 0.86));
+}
+.cardHead { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.cardTitle { display: grid; gap: 8px; justify-items: start; min-width: 0; flex: 1 1 320px; }
+.cardTitle h3 { font: 500 21px/1.2 var(--display); letter-spacing: -0.02em; word-spacing: 0.05em; overflow-wrap: anywhere; }
+.count { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+
+.report { margin-top: 14px; border-top: 1px solid var(--hair); padding-top: 12px; }
+.report summary { cursor: pointer; font-size: 14px; color: var(--soft); list-style: none; }
+.report summary::-webkit-details-marker { display: none; }
+.report summary::before { content: "+ "; color: rgb(var(--br-400)); font-family: var(--mono); }
+.report[open] summary::before { content: "− "; }
+.reportBody { margin-top: 12px; display: grid; gap: 12px; }
+.reportMeta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.block { display: grid; gap: 3px; }
+.block span { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.block p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14.5px; color: var(--soft); }
+.poc { overflow-wrap: anywhere; font-size: 11.5px; }
+
+@media (max-width: 860px) {
+  .card { padding: 16px 14px 14px; border-radius: 14px; }
+  .cardTitle h3 { font-size: 18px; }
+}

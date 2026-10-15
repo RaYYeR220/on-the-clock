@@ -1,0 +1,18 @@
+.card {
+  border: 1px solid var(--hair);
+  border-radius: 16px;
+  padding: 18px 20px 18px;
+  background: rgb(var(--gm-950) / 0.35);
+}
+.head { display: flex; justify-content: space-between; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.head :global(.eyebrow) { white-space: nowrap; }
+.kv { display: grid; grid-template-columns: 76px 1fr; gap: 6px 14px; font-size: 14px; }
+.kv dt { color: var(--muted); font-size: 13px; }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+.export { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--hair-strong); }
+.export summary { cursor: pointer; font-size: 13px; color: var(--soft); list-style: none; }
+.export summary::-webkit-details-marker { display: none; }
+.export summary::before { content: "+ "; color: rgb(var(--br-400)); font-family: var(--mono); }
+.export[open] summary::before { content: "− "; }
+.export > p { margin-top: 8px; }
+.key { margin-top: 10px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); }
