@@ -1,155 +1,271 @@
 # On the Clock: Arkiv schema
 
 This is the data contract. Everything On the Clock writes is an Arkiv entity on **Tiramisu** (chain
-`7738577`). Anyone can read it, query it, and rebuild every verdict the app shows from it, without
-our backend. The SDK (`on-the-clock-sdk`) is one implementation of this contract; this file is
+`7738577`). Anyone can read these Arkiv entities, query them, and rebuild every verdict the app shows,
+without our backend. The SDK (`on-the-clock-sdk`) is one implementation of this contract; this file is
 enough to write another.
 
-- SDK: `@arkiv-network/sdk` **0.8.1** (pinned exactly)
-- Block time: 2 s. All expiries below are block heights; durations are given in time for readability.
-- Every entity carries `app = "onclock"` and `kind = <type>`, so one predicate scopes any query to
-  the protocol.
-- Attribute names are lowercase (the node rejects anything else). Numbers are typed `u64`; keys are
-  typed `key`; addresses are typed `addr`. A bare JS number would become `i32` and silently match
-  nothing against a `u64`.
+- SDK: `@arkiv-network/sdk` **0.8.1** (pinned exactly).
+- Block time is 2 s. Entity Expiration values are block heights; durations are given in time for
+  readability.
+- Every entity carries the attributes `app = "onclock"` and `kind = <type>`, so one predicate scopes
+  any query to the protocol.
+- Attribute names are lowercase (the node rejects anything else). Numbers are typed `u64`, entity keys
+  `key`, addresses `addr`. A bare JS number would become `i32` and silently match nothing against a
+  `u64`.
 - **Trust comes from `$creator`.** Attributes and payloads are claims; who wrote an entity is not.
   Every check in this document is a `$creator` check or a recomputation, never a field match.
 
-## What is on Arkiv, and why
+Code: entity writes are in `packages/sdk/src/actions.ts` and `packages/sdk/src/watcher.ts`, every
+query is in `packages/sdk/src/read.ts`, and every verdict is in `packages/sdk/src/state.ts`.
 
-| Type | Written by | Typed attributes (queried) | Payload (not queried) | Entity Expiration | Flags, owner after the write |
-|---|---|---|---|---|---|
-| `inbox` | the vendor's wallet | `name` str, `sla` u64 (days), `embargo` u64 (days) | ERC-5564 stealth meta-address, disclosure policy | **30-day lease**, renewed by the vendor's activity; a filing extends it to deadline + 30 days | `readonly`, `permissionlessExtension`; vendor-owned |
-| `case` | the researcher | `sev` u64 (1–4) | everything sealed: see below | **1 year** (a record that must outlive the case) | `readonly`, `permissionlessExtension`; owner → `0x…dEaD` in the filing batch |
-| `clock` | the researcher | `case` key | `{v:1}` | **= the embargo deadline** | `readonly`; owned by the custodian (researcher, or whoever it is handed to). **Not** permissionless. |
-| `trigger` | the researcher | `case` key, `target` key (the clock), `watcher` addr, `action` str | one watcher's share, ECIES-encrypted to that watcher | deadline + 7-day grace; moved together with the clock | `readonly`, `permissionlessExtension`; owner → `0x…dEaD` in the filing batch |
-| `ack`, `extreq`, `fixed` | the vendor's one-time **responder** address | `case` key; `extreq`: `seconds` u64 | optional note, ECIES-encrypted to the researcher | 1 year | `readonly` |
-| `grant` | the clock's custodian | `case` key, `seconds` u64 | the clock's new expiry block | 1 year | `readonly` |
-| `handoff` | the clock's custodian | `case` key, `to` addr | reason | 1 year | `readonly` |
-| `watcher` | a watcher's wallet | `op` str, `region` str | the watcher's encryption key | **10-minute lease**, renewed every 3 minutes while the process is alive | none |
-| `receipt` | a watcher | `case` key, `target` key, `outcome` str (`lapsed` / `withdrawn` / `disclosed`), `at` u64 | the released share (for `lapsed`), what the watcher observed | 1 year | `readonly`, `permissionlessExtension` |
-| `reveal` | the watcher that completes the threshold, or the researcher (early disclosure) | `case` key, `vendor` addr, `inbox` key, `by` str | the advisory key K | 1 year | `readonly`, `permissionlessExtension` |
+---
 
-### Why each lifetime is what it is
+## Entity types
 
-- **`clock` = the deadline.** This is the product. The deadline is not a field someone checks; it is
-  the lifetime of an entity only its custodian can extend. A vendor's `extendEntity` on it reverts
-  with `NotOwner`.
-- **`trigger` = deadline + grace, extended in the same batch as the clock.** A clock pushed out
-  without its escrow (shares that expire before the new deadline) cannot exist.
-- **`watcher` = a 10-minute lease.** A watcher is alive exactly while its lease entity exists, so
-  "which watchers are alive" is a plain query with no liveness logic anywhere.
-- **`inbox` = a lease renewed by activity**, with **permissionless extension**: a researcher with an
-  open case extends the vendor's inbox past the deadline in the filing batch, so a vendor cannot
-  dodge attribution by letting its inbox lapse.
-- **Records (`case`, acts, receipts, reveals) = 1 year.** They are the history a vendor's
-  responsiveness is judged on; they must outlive the case. Published records carry
-  **permissionless extension** so anyone can keep an advisory alive after we stop caring.
+### Entity type: `inbox`
 
-### What the `case` payload holds (and what an outsider can read from it)
+A vendor's disclosure inbox, the equivalent of `security.txt`.
 
-| Field | Meaning | Readable by |
-|---|---|---|
-| `eph`, `vt` | ERC-5564 ephemeral key and view tag: how the vendor finds the case | everyone (random-looking) |
-| `eph2` | a second ephemeral key, used only for the report | everyone (random-looking) |
-| `responder` | the one-time stealth address the vendor answers from | everyone; unlinkable to the vendor until the reveal |
-| `vcommit` | `keccak(inboxKey ‖ salt)`: commits to one vendor without naming it | everyone; opens only at the reveal |
-| `vendorBox` | the full report, XChaCha20-Poly1305 under `HKDF(r₂·P_view)` | the vendor only, **never** auto-released |
-| `selfBox` | the researcher's own copy (ECIES) | the researcher only |
-| `advisoryBox` | advisory summary + reveal bundle, sealed under a random key K | anyone with K (k of n shares) |
-| `reportHash`, `pocHash` | SHA-256 commitments | everyone; the PoC itself never touches Arkiv |
-| `watchers`, `k` | the watcher set and threshold | everyone |
-| `clock`, `deadlineBlock` | the clock's predicted key, the deadline as filed | everyone |
+- **Written by:** the vendor's wallet (`$creator` is the vendor's identity).
+- **Attributes:** `app` str · `kind` str = `inbox` · `name` str (display name) · `sla` u64 (days to acknowledge) · `embargo` u64 (default embargo, days).
+- **Payload (JSON, not queried):** the vendor's ERC-5564 stealth meta-address and its disclosure policy text.
+- **Entity Expiration:** a **30-day lease**, extended by the vendor's activity (Lifetime Extension). Filing a case against the inbox extends it to the case deadline + 30 days.
+- **Flags:** `readonly` (keys cannot be swapped under an open case; rotation means a new inbox) and `permissionlessExtension` (anyone with an open case can keep it alive, so a vendor cannot dodge attribution by letting it lapse).
+- **Owner:** the vendor.
 
-The explorer sees: a severity band, a random-looking blob, an address with no history, and a clock.
-**It does not see the vendor, the title, the component or the report.**
+### Entity type: `case`
+
+The sealed case file.
+
+- **Written by:** the researcher.
+- **Attributes:** `app` str · `kind` str = `case` · `sev` u64 (severity band 1–4, so the board can range-filter).
+- **Payload (JSON, not queried):** only ciphertext, commitments and public keys:
+  - the ERC-5564 ephemeral key and view tag, which let the vendor find the case;
+  - a second ephemeral key used only for the report;
+  - the one-time responder address the vendor answers from;
+  - the vendor commitment `keccak(inbox key ‖ salt)`;
+  - the full report sealed for the vendor (XChaCha20-Poly1305 under `HKDF(r₂·P_view)`), never auto-released;
+  - the researcher's own copy (ECIES);
+  - the advisory and reveal bundle sealed under a random key K;
+  - SHA-256 commitments to the report and the proof of concept;
+  - the watcher set, the threshold k, the clock key and the deadline as filed.
+- **Entity Expiration:** **1 year**: a case must outlive its deadline, because it is the history a vendor is judged on.
+- **Flags:** `readonly` and `permissionlessExtension` (anyone can keep a published case alive).
+- **Owner:** transferred to `0x000000000000000000000000000000000000dEaD` in the filing batch, so nobody can edit or delete it.
+
+### Entity type: `clock`
+
+The embargo itself.
+
+- **Written by:** the researcher.
+- **Attributes:** `app` str · `kind` str = `clock` · `case` key.
+- **Payload:** `{ "v": 1 }`.
+- **Entity Expiration:** **exactly the embargo deadline.** This is the product. The deadline is not a field anyone checks; it is the lifetime of an entity only its custodian can extend. A vendor's `extendEntity` on it reverts with `NotOwner`.
+- **Flags:** `readonly`. Deliberately **not** `permissionlessExtension`.
+- **Owner:** the custodian. That is the researcher, or the coordinator the clock is handed to with `changeOwnership`.
+
+### Entity type: `trigger`
+
+One watcher's escrowed share of the advisory key K.
+
+- **Written by:** the researcher, in the filing batch.
+- **Attributes:** `app` str · `kind` str = `trigger` · `case` key · `target` key (the clock) · `watcher` addr · `action` str (`release`).
+- **Payload (JSON, not queried):** the share, ECIES-encrypted to that watcher and bound to the case, the clock and the watcher.
+- **Entity Expiration:** the deadline + a **7-day grace**, extended in the same batch as the clock, so the escrow always outlives the deadline.
+- **Flags:** `readonly` and `permissionlessExtension` (a coordinator holding the clock can keep the escrow alive).
+- **Owner:** transferred to `0x…dEaD` in the filing batch.
+
+### Entity type: `ack`, `extreq`, `fixed`
+
+The vendor's acts on a case.
+
+- **Written by:** the case's one-time **responder** address (a stealth address only the vendor controls).
+- **Attributes:** `app` str · `kind` str · `case` key · and on `extreq` only, `seconds` u64 (the time asked for).
+- **Payload (JSON, not queried):** an optional note, ECIES-encrypted to the researcher.
+- **Entity Expiration:** **1 year**.
+- **Flags:** `readonly`.
+
+### Entity type: `grant`
+
+An extension, granted by the clock's custodian.
+
+- **Written by:** the clock's custodian.
+- **Attributes:** `app` str · `kind` str = `grant` · `case` key · `seconds` u64.
+- **Payload (JSON, not queried):** the clock's new expiry block, and the request it answers.
+- **Entity Expiration:** **1 year**.
+- **Flags:** `readonly`.
+
+### Entity type: `handoff`
+
+The queryable record of a custody transfer. Arkiv exposes the current `$owner`, not ownership history.
+
+- **Written by:** the clock's custodian, in the same batch as `changeOwnership`.
+- **Attributes:** `app` str · `kind` str = `handoff` · `case` key · `to` addr.
+- **Payload (JSON, not queried):** the reason.
+- **Entity Expiration:** **1 year**.
+- **Flags:** `readonly`.
+
+### Entity type: `watcher`
+
+A watcher's liveness lease.
+
+- **Written by:** the watcher's wallet.
+- **Attributes:** `app` str · `kind` str = `watcher` · `op` str (operator) · `region` str.
+- **Payload (JSON, not queried):** the watcher's encryption public key and version.
+- **Entity Expiration:** a **10-minute lease**, renewed every 3 minutes while the process runs (Lifetime Extension as a lease renewed by activity). "Which watchers are alive" is a plain query: present means alive.
+
+### Entity type: `receipt`
+
+A watcher's signed observation.
+
+- **Written by:** a watcher.
+- **Attributes:** `app` str · `kind` str = `receipt` · `case` key · `target` key · `outcome` str (`lapsed`, `withdrawn` or `disclosed`) · `at` u64 (the head block it observed).
+- **Payload (JSON, not queried):** the released share (for `lapsed` only), plus what the watcher observed (deadline, last block the clock was alive).
+- **Entity Expiration:** **1 year**.
+- **Flags:** `readonly` and `permissionlessExtension`.
+
+### Entity type: `reveal`
+
+The published advisory key K.
+
+- **Written by:** the watcher whose receipt completes the threshold, or the researcher for an early disclosure. Its author does not matter: a reveal is trusted by recomputation.
+- **Attributes:** `app` str · `kind` str = `reveal` · `case` key · `vendor` addr · `inbox` key · `by` str (`watchers` or `researcher`).
+- **Payload (JSON, not queried):** K.
+- **Entity Expiration:** **1 year**.
+- **Flags:** `readonly` and `permissionlessExtension`: an advisory should outlive anyone's interest in burying it.
+
+---
 
 ## What stays off Arkiv, on purpose
 
-- **The proof of concept.** Only its hash. A working exploit on a public database is the worst
-  design error this product could make.
-- **The full report.** It is on Arkiv only as ciphertext for the vendor, and its key is never
-  released by the protocol, not even at the deadline.
-- **The vendor's identity while the case is open.** A live entry that says "vendor X has an open
+- **The proof of concept.** Only its hash goes on chain. A working exploit on a public database is the
+  worst design error this product could make.
+- **The full report in readable form.** It is on Arkiv only as ciphertext for the vendor, and its key
+  is never released by the protocol, not even at the deadline.
+- **The vendor's identity while the case is open.** A live entity that says "vendor X has an open
   critical, nine days left" is targeting intelligence. The vendor is a stealth address until the
   reveal.
 - **Correspondence, triage, the patch.** Vendor notes are optional and encrypted to the researcher.
-- **Real identities.** Researchers are wallets. Demo data is synthetic.
-- **Private keys and secrets.** Watchers hold their shares in memory, re-derived from the chain on
-  restart; nothing secret is ever written in plaintext.
+- **Real identities.** Researchers are wallets, and all demo data is synthetic.
+- **Private keys and secrets.** Watchers keep their shares in memory and re-derive them from the chain
+  on restart. Nothing secret is ever written in plaintext.
 
-**Expiry is not erasure.** Arkiv keeps payloads in transaction calldata, so an expired entity is gone
+**Expiry is not erasure.** Arkiv keeps payloads in transaction calldata: an expired entity disappears
 from queries, not from history. That is why every confidential field is encrypted rather than
 "protected" by a short lifetime.
 
-## Atomic batches
+## Atomic batches (`executeBatch`)
 
-| Batch | Operations | Why atomic |
-|---|---|---|
-| File | create `case`, `clock`, n × `trigger` (keys pre-computed with `predictEntityKeys`) · extend the vendor's `inbox` · transfer `case` and triggers to `0x…dEaD` | a clock without escrow, or escrow without a clock, cannot exist; the case file is sealed before anyone can touch it |
-| Grant | extend `clock` · extend every `trigger` · create `grant` | the escrow always outlives the deadline |
-| Hand off | transfer `clock` to the coordinator · create `handoff` | the transfer is the authoritative act; the record makes it queryable (Arkiv has no ownership history) |
-| Disclose early | create `reveal` (by researcher) · delete `clock` | the clock stops exactly when the key is published |
-| Lapse | create `receipt` · (the k-th watcher) create `reveal` | the reveal appears in the same block as the share that made it possible |
+- **File:** create `case`, `clock` and n × `trigger` (keys pre-computed with `predictEntityKeys`), extend the vendor's `inbox`, and transfer `case` and the triggers to `0x…dEaD`.
+  - A clock without escrow, or escrow without a clock, cannot exist.
+  - The case file is sealed before anyone can touch it.
+- **Grant:** extend `clock`, extend every `trigger`, and create `grant`. The escrow always outlives the deadline.
+- **Hand off:** transfer `clock` to the coordinator and create `handoff`. The transfer is the authoritative act; the entity makes it queryable.
+- **Disclose early:** create `reveal` (by the researcher) and delete `clock`. The clock stops exactly when K is published.
+- **Lapse:** create `receipt`, and the k-th watcher also creates `reveal`. The reveal lands in the same block as the share that made it possible.
 
-## The queries
+---
 
-Every read the app makes. Run them with `on-the-clock queries <caseKey>`, or paste them into the Data
-Explorer (data.arkiv.network) to see the same entities we do.
+## Queries the app runs
 
-```text
-# A case file and everything that points at it — one query, cursor-paged (≤200 per page)
-app = "onclock" && ($key = <case> || case = <case>)
+These are the actual calls, taken from `packages/sdk/src/read.ts` and `packages/sdk/src/watcher.ts`.
+`on-the-clock queries <caseKey>` prints the rendered query strings, and the same strings work in the
+Data Explorer (data.arkiv.network).
 
-# The board: everything the protocol wrote, grouped by `case` client-side (no ORDER BY on Arkiv)
-app = "onclock"
+```ts
+import { eq, or, lte } from "@arkiv-network/sdk/query";
+import { str, key, addr, u64 } from "@arkiv-network/sdk/attr";
 
-# A watcher's job list: one attribute match
-app = "onclock" && kind = "trigger" && watcher = <watcherAddress>
+// 1. A case and every Arkiv entity that points at it: one compound query, cursor-paged (≤200/page).
+const page = await client
+  .select("*")
+  .where(eq("app", str("onclock")), or(eq("$key", key(caseKey)), eq("case", key(caseKey))))
+  .limit(200)
+  .fetch();
+// then page.hasNextPage() / page.next() until done
 
-# Alive watchers: present = alive (each is a 10-minute lease)
-app = "onclock" && kind = "watcher"
+// 2. The board: everything the protocol wrote, grouped by `case` client-side (Arkiv has no ORDER BY).
+await client.select("*").where(eq("app", str("onclock"))).limit(200).fetch();
 
-# A coordinator's worklist, soonest first (sorted client-side)
-app = "onclock" && kind = "clock"      ownedBy(<coordinator>)
+// 3. A watcher's job list: one attribute match on a typed address.
+await client
+  .select("*")
+  .where(eq("app", str("onclock")), eq("kind", str("trigger")), eq("watcher", addr(watcherAddress)))
+  .limit(200)
+  .fetch();
 
-# Clocks running out within a window ($expiresAt is a queryable block height)
-app = "onclock" && kind = "clock" && $expiresAt <= <head + window>
+// 4. Alive watchers: each is a 10-minute lease, so present = alive.
+await client.select("*").where(eq("app", str("onclock")), eq("kind", str("watcher"))).limit(200).fetch();
 
-# Reveals naming a vendor (an index; each one is re-verified before it counts)
-app = "onclock" && kind = "reveal" && vendor = <vendorAddress>
+// 5. A coordinator's worklist: the clocks it owns ($owner), sorted by expiry client-side.
+await client.select("*").where(eq("app", str("onclock")), eq("kind", str("clock"))).ownedBy(coordinator).limit(200).fetch();
 
-# Has a watcher already answered this case?
-app = "onclock" && kind = "receipt" && case = <case>      createdBy(<watcher>)
+// 6. Clocks running out within a window: $expiresAt is a queryable u64 block height.
+await client
+  .select("*")
+  .where(eq("app", str("onclock")), eq("kind", str("clock")), lte("$expiresAt", u64(head + windowBlocks)))
+  .limit(200)
+  .fetch();
 
-# Was the clock alive one block before its deadline? (historical query)
-app = "onclock" && $key = <clock>      atBlock(<expiresAt - 1>)
+// 7. Reveals naming a vendor: an index only; each one is re-verified before it counts.
+await client
+  .select("*")
+  .where(eq("app", str("onclock")), eq("kind", str("reveal")), eq("vendor", addr(vendorAddress)))
+  .limit(200)
+  .fetch();
+
+// 8. Has this watcher already answered this case? Filtered by the immutable $creator.
+await client
+  .select("*")
+  .where(eq("app", str("onclock")), eq("kind", str("receipt")), eq("case", key(caseKey)))
+  .createdBy(watcherAddress)
+  .limit(200)
+  .fetch();
+
+// 9. Was the clock alive one block before its deadline? A historical query.
+await client
+  .select("*")
+  .where(eq("app", str("onclock")), eq("$key", key(clockKey)))
+  .atBlock(expiresAt - 1n)
+  .limit(200)
+  .fetch();
 ```
 
-Plus two log reads that are not entity queries:
+Rendered, query 1 is:
 
-- `eth_getLogs(EntityDeleted, entityKey = <clock>)`: a watcher's proof nobody deleted the clock.
-- `eth_getLogs(EntityCreated | ExpiryExtended, entityKey = <clock>)`: the clock's real expiry once it
-  is gone, so receipts are judged against what the chain did rather than what records claim.
+```text
+app = str('onclock') AND ($key = key(0x…case) OR case = key(0x…case))
+```
 
-And one live subscription: watchers call `watchEntityEvents` on a **WebSocket** transport with no
-`fromBlock`, which opens a real `eth_subscribe`. They react to `ExpiryExtended` (reschedule),
-`EntityDeleted` (withdrawal) and `OwnershipTransferred` (custody moved) on the clocks they hold.
-`EntityCreated` carries no attributes, so new creations are coalesced into one job-list query instead
-of one fetch per entity.
+### Log reads (not entity queries)
+
+- `eth_getLogs` for `EntityDeleted(entityKey = clock)`: a watcher's proof that nobody deleted the clock.
+- `eth_getLogs` for `EntityCreated` and `ExpiryExtended(entityKey = clock)`: the clock's real expiry once it is gone. Receipts are judged against what the chain did, not what any entity claims.
+
+### Live subscription
+
+Watchers and the web app call `watchEntityEvents` over a **WebSocket** transport with no `fromBlock`,
+which opens a real `eth_subscribe`:
+
+- `ExpiryExtended` reschedules a watcher's job.
+- `EntityDeleted` means the case was withdrawn or disclosed early.
+- `OwnershipTransferred` means custody moved.
+- `EntityCreated` carries no attributes, so watchers coalesce creations into one job-list query.
+  The web app refreshes only on creations by a case's known authors (the event's indexed `owner`).
+
+---
 
 ## How each verdict is computed
 
-All of it is in `packages/sdk/src/state.ts`, a pure function of the entities above.
+`packages/sdk/src/state.ts` holds a pure function over the Arkiv entities above:
 
-- **A vendor act counts** if `$creator == case.responder`. Before the reveal that proves "written by
-  the responder"; the reveal proves the responder is the vendor.
-- **A grant or handoff counts** if `$creator` is the custodian at that point in the chain of handoffs
-  starting from the case's `$creator`.
-- **A receipt counts** if `$creator` is one of the case's watchers and it was written at or after the
-  clock's real expiry (live clock, or its logs), never before the deadline sealed in the case file.
-- **A reveal counts** if its key K decrypts `advisoryBox`, opens `vcommit`, reproduces `eph` and the
-  view tag from the vendor's meta-address (proof of delivery), and derives `responder` from the
-  vendor's spending key. Its author is irrelevant.
-- **The vendor is named** only if the inbox the bundle points to was created by that vendor and
-  carries that meta-address.
+- **A vendor act counts** if its `$creator` is the case's responder. Before the reveal that only proves "written by the responder"; the reveal then proves the responder is the vendor.
+- **A grant or handoff counts** if its `$creator` was the custodian at that point in the chain of handoffs that starts from the case's `$creator`.
+- **A receipt counts** if its `$creator` is one of the case's watchers and it was written at or after the clock's real expiry. The real expiry is read from the live clock or, once it is gone, from the clock's logs. A receipt never counts before the deadline sealed in the case.
+- **A reveal counts** if K:
+  - decrypts the advisory;
+  - opens the vendor commitment;
+  - reproduces the published ephemeral key and view tag from the vendor's meta-address (proof of delivery);
+  - derives the responder from the vendor's spending key.
+- **The vendor is named** only if the inbox the reveal points to was created by that vendor and carries that meta-address.

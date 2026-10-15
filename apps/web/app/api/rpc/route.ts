@@ -1,6 +1,8 @@
-// Read-only RPC relay with an access key. The app only falls back to it when the anonymous query
-// budget is exhausted; everything it serves is public, and nothing that writes is forwarded.
+// Read-only RPC relay with an access key. The app falls back to it only when the anonymous query
+// budget is exhausted. It serves this site's pages only (same origin), forwards Arkiv reads only,
+// and is rate limited per IP, so the key's quota cannot be borrowed by anyone else.
 import { NextResponse } from "next/server";
+import { Window, clientIp, sameOrigin } from "@/lib/limits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,35 +12,39 @@ const READS = new Set([
   "eth_blockNumber",
   "eth_getBalance",
   "eth_getLogs",
-  "eth_getBlockByNumber",
   "eth_getTransactionReceipt",
-  "eth_getTransactionByHash",
-  "eth_getTransactionCount",
-  "eth_call",
-  "eth_estimateGas",
-  "eth_gasPrice",
-  "eth_maxPriorityFeePerGas",
-  "eth_feeHistory",
   "arkiv_query",
   "arkiv_getEntity",
   "arkiv_getEntityCount",
-  "arkiv_getBlockTiming",
 ]);
+const MAX_BODY = 16_384;
+const perIp = new Window(240, 60_000);
 
 type RpcCall = { method?: string };
+const refuse = (status: number, message: string) =>
+  NextResponse.json({ jsonrpc: "2.0", id: null, error: { code: -32601, message } }, { status });
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => null)) as RpcCall | RpcCall[] | null;
-  const calls = Array.isArray(body) ? body : body ? [body] : [];
-  if (!calls.length || calls.length > 20 || calls.some((c) => !c.method || !READS.has(c.method))) {
-    return NextResponse.json({ jsonrpc: "2.0", id: null, error: { code: -32601, message: "read-only relay" } }, { status: 400 });
+  if (!sameOrigin(req)) return refuse(403, "this relay only serves the On the Clock app; read Arkiv directly");
+  if (!perIp.take(clientIp(req))) return refuse(429, "slow down");
+  const raw = await req.text();
+  if (raw.length > MAX_BODY) return refuse(413, "request too large");
+  let body: RpcCall | RpcCall[];
+  try {
+    body = JSON.parse(raw) as RpcCall | RpcCall[];
+  } catch {
+    return refuse(400, "bad json");
+  }
+  const calls = Array.isArray(body) ? body : [body];
+  if (!calls.length || calls.length > 10 || calls.some((c) => !c?.method || !READS.has(c.method))) {
+    return refuse(400, "read-only relay");
   }
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (process.env.ARKIV_ACCESS_KEY) headers["X-API-KEY"] = process.env.ARKIV_ACCESS_KEY;
   const upstream = await fetch(process.env.ARKIV_RPC_URL ?? "https://rpc.tiramisu.db-chain.testnet.arkiv.network", {
     method: "POST",
     headers,
-    body: JSON.stringify(body),
+    body: raw,
     cache: "no-store",
   });
   return new NextResponse(await upstream.text(), { status: upstream.status, headers: { "content-type": "application/json" } });
