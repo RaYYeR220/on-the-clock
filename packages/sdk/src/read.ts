@@ -208,6 +208,20 @@ export async function listInboxes(pub: PublicArkivClient, vendor?: Address): Pro
   return fetchAll<InboxPayload>(pub, [app(), kindIs("inbox")], vendor ? { createdBy: vendor } : {});
 }
 
+/**
+ * The inbox to file to, per vendor and name: a vendor that publishes its inbox again replaces the
+ * old one for new reports (older inboxes stay alive for the cases already filed to them). Newest first.
+ */
+export function currentInboxes<T extends OtcEntity<InboxPayload>>(list: T[]): T[] {
+  const best = new Map<string, T>();
+  for (const i of list) {
+    const id = `${i.creator.toLowerCase()}|${i.payload?.name ?? ""}`;
+    const have = best.get(id);
+    if (!have || i.createdAt > have.createdAt) best.set(id, i);
+  }
+  return [...best.values()].sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
+}
+
 /** A watcher is alive exactly while its lease entity exists, so "alive" is just "present". */
 export async function listWatchers(pub: PublicArkivClient): Promise<OtcEntity<WatcherPayload>[]> {
   return dedupeByCreator(await fetchAll<WatcherPayload>(pub, [app(), kindIs("watcher")]));

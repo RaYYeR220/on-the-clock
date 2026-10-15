@@ -15,6 +15,8 @@ import {
   Watcher,
   baseAttrs,
   createInbox,
+  currentInboxes,
+  listInboxes,
   encodePayload,
   fetchAll,
   fileCase,
@@ -32,6 +34,7 @@ import {
   vendorAct,
   type CasePayload,
   type InboxPayload,
+  type OtcEntity,
 } from "on-the-clock-sdk";
 import { account, cfg, ent, expectRevert, live, log, pub, saveProof, sleep, tx, wallet, walletFor, watcherEncKey } from "./lib.ts";
 
@@ -76,15 +79,26 @@ if (!deployed) {
 const vendorAcct = account("SEED_VENDOR_1");
 const vendor = wallet("SEED_VENDOR_1");
 const vkeys = keysFromSignature(await vendorAcct.signMessage({ message: KEY_MESSAGE })).stealth;
-const inboxTx = await createInbox(vendor, {
-  name: "Halcyon Bridge (test vendor)",
-  meta: vkeys.metaAddress,
-  policy: "Synthetic test vendor. Reports acknowledged within 7 days; 90-day embargo by default.",
-  sla: 7,
-  embargo: 90,
-});
-step("vendor opened an inbox", { inbox: inboxTx.entityKey, tx: inboxTx.txHash, by: vendorAcct.address });
-const inbox = (await getOne<InboxPayload>(pub, inboxTx.entityKey))!;
+const VENDOR_NAME = "Halcyon Bridge (test vendor)";
+// Reuse the test vendor's live inbox from an earlier run, as a real vendor would.
+const existing = currentInboxes(await listInboxes(pub, vendorAcct.address)).find(
+  (i) => i.payload?.name === VENDOR_NAME && i.payload.meta === vkeys.metaAddress,
+);
+let inbox: OtcEntity<InboxPayload>;
+if (existing) {
+  inbox = existing;
+  step("vendor opened an inbox in an earlier run (reused)", { inbox: inbox.key, createdAt: inbox.createdAt, by: vendorAcct.address });
+} else {
+  const inboxTx = await createInbox(vendor, {
+    name: VENDOR_NAME,
+    meta: vkeys.metaAddress,
+    policy: "Synthetic test vendor. Reports acknowledged within 7 days; 90-day embargo by default.",
+    sla: 7,
+    embargo: 90,
+  });
+  step("vendor opened an inbox", { inbox: inboxTx.entityKey, tx: inboxTx.txHash, by: vendorAcct.address });
+  inbox = (await getOne<InboxPayload>(pub, inboxTx.entityKey))!;
+}
 
 // ---------- 2. researcher files ----------
 const researcherAcct = account("SEED_RESEARCHER_1");

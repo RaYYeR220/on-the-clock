@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Hex } from "viem";
-import { BLOCK_SECONDS, RESPONDER_POSTAGE, SEVERITY, listInboxes, sha256Hex, type FiledCase, type InboxPayload, type OtcEntity, type Severity } from "on-the-clock-sdk";
+import { BLOCK_SECONDS, RESPONDER_POSTAGE, SEVERITY, currentInboxes, listInboxes, sha256Hex, type FiledCase, type InboxPayload, type OtcEntity, type Severity } from "on-the-clock-sdk";
 import { Hash, short } from "@/components/Hash";
 import { ErrorNote, Receipts, TxRow, Working } from "@/components/DemoParts";
 import { WalletCard } from "@/components/WalletCard";
@@ -58,10 +58,14 @@ export default function FilePage() {
   const loadInboxes = useCallback(async () => {
     setInboxError(null);
     try {
-      const list = (await listInboxes(readClient())).sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
-      setInboxes(list);
+      const all = await listInboxes(readClient());
       const wanted = new URLSearchParams(window.location.search).get("inbox")?.toLowerCase();
-      setInboxKey((cur) => cur ?? list.find((i) => i.key.toLowerCase() === wanted)?.key ?? null);
+      // A link to a specific (possibly superseded) inbox still selects it.
+      const linked = all.find((i) => i.key.toLowerCase() === wanted);
+      const current = currentInboxes(all);
+      const list = linked && !current.includes(linked) ? [linked, ...current] : current;
+      setInboxes(list);
+      setInboxKey((cur) => cur ?? linked?.key ?? null);
     } catch (e) {
       setInboxError(plain(e));
     }

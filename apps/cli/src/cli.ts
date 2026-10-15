@@ -11,6 +11,7 @@ import {
   Watcher,
   deriveScalar,
   liveClient,
+  currentInboxes,
   listInboxes,
   loadBoard,
   loadCase,
@@ -142,7 +143,7 @@ async function board(asJson: boolean) {
 }
 
 async function inboxes(asJson: boolean) {
-  const list = await listInboxes(publicClient(cfg()));
+  const list = currentInboxes(await listInboxes(publicClient(cfg())));
   if (asJson) return console.log(json(list.map((i) => ({ key: i.key, vendor: i.creator, ...i.payload, expiresAt: i.expiresAt }))));
   for (const i of list) console.log(`  ${bold(safe(i.payload?.name).padEnd(28))} sla ${safe(i.payload?.sla)}d · embargo ${safe(i.payload?.embargo)}d · ${dim(i.creator)} ${dim(i.key)}`);
 }

@@ -38,7 +38,8 @@ const until = (iso: string) => Math.max(120, Math.floor((Date.parse(iso) - Date.
 
 // ---------- vendors ----------
 const VENDORS = [
-  { who: "SEED_VENDOR_1", name: "Tidewater Bridge (demo)", sla: 7, embargo: 90, policy: "Demo vendor. We acknowledge within 7 days and ask for no more than one extension." },
+  // SEED_VENDOR_1 is the end-to-end run's test vendor; the demo vendors use their own wallets.
+  { who: "SEED_VENDOR_4", name: "Tidewater Bridge (demo)", sla: 7, embargo: 90, policy: "Demo vendor. We acknowledge within 7 days and ask for no more than one extension." },
   { who: "SEED_VENDOR_2", name: "Larkspur Lending (demo)", sla: 3, embargo: 60, policy: "Demo vendor. Critical reports acknowledged within 72 hours." },
   { who: "SEED_VENDOR_3", name: "Quarry Oracles (demo)", sla: 14, embargo: 90, policy: "Demo vendor. Coordinated disclosure, 90 days by default." },
 ];
@@ -68,15 +69,6 @@ type Plan = {
 };
 
 const PLANS: Plan[] = [
-  {
-    id: "replay",
-    researcher: "SEED_RESEARCHER_1",
-    vendor: 0,
-    deadline: 600,
-    ack: true,
-    fixed: true,
-    advisory: { title: "Withdrawal proofs replay across epochs", component: "bridge/verifier", severity: 4, cwe: "CWE-294", summary: "The epoch id is not part of the signed withdrawal message, so a proof accepted in one epoch is accepted again in the next.", researcher: "anon-7" },
-  },
   {
     id: "oracle-stale",
     researcher: "SEED_RESEARCHER_2",

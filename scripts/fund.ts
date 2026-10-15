@@ -12,6 +12,7 @@ const TARGETS: Record<string, string> = {
   SEED_VENDOR_1: "0.05",
   SEED_VENDOR_2: "0.05",
   SEED_VENDOR_3: "0.05",
+  SEED_VENDOR_4: "0.05",
   SEED_COORDINATOR: "0.05",
   SEED_IMPOSTOR: "0.05",
 };
