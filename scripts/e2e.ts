@@ -181,9 +181,11 @@ const rec = (kind: Parameters<typeof baseAttrs>[0], payload: unknown, extra: Rec
   payload: encodePayload(payload),
   contentType: "application/json",
   attributes: { ...baseAttrs(kind), case: A.key(filed.caseKey), ...extra },
-  expires: ExpirationTime.fromHours(6),
+  // The forged acts live as long as a month, so the case page keeps showing them ignored to anyone
+  // who opens it later, not only during the run.
+  expires: ExpirationTime.fromDays(30),
 });
-const decoyClock = await impostor.createEntity(rec("clock", { v: 1 }));
+const decoyClock = await impostor.createEntity({ ...rec("clock", { v: 1 }), expires: ExpirationTime.fromHours(6) });
 const forged = await impostor.executeBatch({
   creates: [
     rec("ack", { v: 1 }),
