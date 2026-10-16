@@ -1,159 +1,159 @@
 {
   "network": "tiramisu",
   "chainId": 7738577,
-  "startedAt": "2026-10-15T16:42:26.856Z",
+  "startedAt": "2026-10-16T07:00:37.642Z",
   "steps": [
     {
-      "name": "vendor opened an inbox",
-      "at": "2026-10-15T16:42:32.092Z",
+      "name": "vendor opened an inbox in an earlier run (reused)",
+      "at": "2026-10-16T07:00:38.022Z",
       "inbox": "0x8fd93c0a8d73887c6dfe3c1d8cf3c6d276f8d86218db5a7f99e963d3cd2f8876",
-      "tx": "0xc149ed4ce093995f9e89a1d45a534ff10264e8c39b28325b8ee4a36e59e078bd",
+      "createdAt": "616392",
       "by": "0x41bD50FF6481a82f590a8D2589dd291AB04b1585"
     },
     {
       "name": "researcher filed the case in one batch",
-      "at": "2026-10-15T16:42:37.879Z",
-      "case": "0x4d2e4f930bde2c3249f185a3d65996939d5745569844ed69726281498763a36b",
-      "clock": "0x4eb41a41e5d2c265745edd0675ad3a8aec8c3d3acef159e6aba06d9c53a59fc8",
+      "at": "2026-10-16T07:00:43.359Z",
+      "case": "0xb28d400c4e117c31f1278ef22c2dd6610bba6ea88821b87318c2155ed6ec3220",
+      "clock": "0x00a3f874a3e3ada419218a27f4fb5803e58502b56ec6b3f3e5117244d7b90acb",
       "triggers": [
-        "0x41e116a344ec36123580191c158910f1de08bb4ff23659af6f82bc892de152f1",
-        "0xf4f82bbd195bc3b4ab0de040362b20e1d53d73a663c575dab9b0997d8d1b93cf",
-        "0x6efe46a06a5425a7ba0434350eaa5059eb92518ded7ac207fa981e8b85dd893b"
+        "0x12abacf58d4c7837e87330398718addff6c1b105f346949b859eeffbd88519c0",
+        "0x808c02c952189c30b55be457843d12d5bbb104f6c7c8db66e723fe2ef8cac16e",
+        "0x3e55bc63576090dc3bba470f5333263b6061b60d0b3a49aefc462548dae97d19"
       ],
-      "deadlineBlock": "616453",
-      "tx": "0x9ac5fa9f230989ddeae40998b62c8657a14919bbdf91f353e3b30234239477d0",
-      "postageTx": "0xc89e5c87f609f024f3e89ec1987f532e3887e2eaed372025e20b10faf42b304d",
+      "deadlineBlock": "642196",
+      "tx": "0xb318e4cc851dc0f3e105783f3316d6ca716fc04ac72dfb777690e5b59fc0ca82",
+      "postageTx": "0x43146ed55e3895b89c7686e4430bf11a065eb3a27a88193fd02de1697144180d",
       "by": "0xFD35C169EB401be44C344d48674cFB05fCC1647b"
     },
     {
       "name": "vendor found the case by trial-decryption",
-      "at": "2026-10-15T16:42:40.400Z",
-      "scanned": 4,
-      "matched": 4,
+      "at": "2026-10-16T07:00:46.925Z",
+      "scanned": 16,
+      "matched": 5,
       "title": "Withdrawal proofs can be replayed across epochs"
     },
     {
       "name": "vendor derived the one-time responder",
-      "at": "2026-10-15T16:42:40.402Z",
-      "responder": "0x0ded7e05292a3135a6A16a39E3d00Be89ad55bF1",
+      "at": "2026-10-16T07:00:46.927Z",
+      "responder": "0xEA8FDbFFc53526ED4781BB2570671477f12F1C9e",
       "matchesCase": true
     },
     {
       "name": "vendor acknowledged (from the responder)",
-      "at": "2026-10-15T16:42:45.202Z",
-      "entity": "0x5c387c51925a04ee569b23583fb6f675a878d741d5b80d72446e3b45af1dd557",
-      "tx": "0xe6137f1b49b71f8256b476a299f1f0717cc47327098740c4b038136a7e41f554"
+      "at": "2026-10-16T07:00:51.652Z",
+      "entity": "0x641aa2623e848a4db4b9276a71d2528491c712905884af10509480f68d0ed3a1",
+      "tx": "0xcab84bf9f8e0640b42cea42e4a454589220870672e8e0ba8b1eecac89767b4f8"
     },
     {
       "name": "vendor asked for more time",
-      "at": "2026-10-15T16:42:49.938Z",
-      "entity": "0x0d5babbe41b2bbc7df6862006ed48e29113b64d72638c9c6dfc3acfd38a63c2e",
-      "tx": "0x3cd64d203966723d8e14596d1c8bda5d512860e4d5a0c43287bf28cfbdd2792c",
+      "at": "2026-10-16T07:00:56.206Z",
+      "entity": "0x8afba4e832ce6d57f637fed29c13d904241c2b49f2c8399692e89bfa6515d994",
+      "tx": "0xe76ce77c359f81e428d1142a96392f157ec7dfb0959d78f0b648d5528386f6e3",
       "seconds": 60
     },
     {
       "name": "refused: vendor tries to extend the clock itself",
-      "at": "2026-10-15T16:43:09.646Z",
+      "at": "2026-10-16T07:01:14.585Z",
       "reverted": true,
-      "error": "Transaction 0x27feac0cb9263ee913f2df77117e4fc80851b42f4a1a79376781e29825fb3b12 reverted. Reason: entity 0x4eb41a41…a59fc8 is owned by 0xFD35C169EB401be44C344d48674cFB05fCC1647b, not 0x0ded7e05292a3135a6A16a39E3d00Be89ad55bF1",
-      "tx": "0x27feac0cb9263ee913f2df77117e4fc80851b42f4a1a79376781e29825fb3b12"
+      "error": "Transaction 0xe57f4e1293a609e0cfb6b7865615bcef1afc031d8c82b3242b75529afca67fec reverted. Reason: entity 0x00a3f874…b90acb is owned by 0xFD35C169EB401be44C344d48674cFB05fCC1647b, not 0xEA8FDbFFc53526ED4781BB2570671477f12F1C9e",
+      "tx": "0xe57f4e1293a609e0cfb6b7865615bcef1afc031d8c82b3242b75529afca67fec"
     },
     {
       "name": "refused: vendor tries to delete the clock",
-      "at": "2026-10-15T16:43:09.646Z",
+      "at": "2026-10-16T07:01:14.585Z",
       "reverted": true,
-      "error": "Transaction 0x75e982efc0eb35f54aa25a278fd16013b43f8f564e3cf41bc0c94e68190cee06 reverted. Reason: entity 0x4eb41a41…a59fc8 is owned by 0xFD35C169EB401be44C344d48674cFB05fCC1647b, not 0x0ded7e05292a3135a6A16a39E3d00Be89ad55bF1",
-      "tx": "0x75e982efc0eb35f54aa25a278fd16013b43f8f564e3cf41bc0c94e68190cee06"
+      "error": "Transaction 0xa39750702cf94e691466ee30050f8f234fd6d561419cf17f999d2422d193729a reverted. Reason: entity 0x00a3f874…b90acb is owned by 0xFD35C169EB401be44C344d48674cFB05fCC1647b, not 0xEA8FDbFFc53526ED4781BB2570671477f12F1C9e",
+      "tx": "0xa39750702cf94e691466ee30050f8f234fd6d561419cf17f999d2422d193729a"
     },
     {
       "name": "refused: researcher tries to edit the sealed case file",
-      "at": "2026-10-15T16:43:09.646Z",
+      "at": "2026-10-16T07:01:14.585Z",
       "reverted": true,
-      "error": "Transaction 0x7d0fafabcfc199c4ca1543037f7fa11ede5300958404c955ca30920dc01113f2 reverted. Reason: entity 0x4d2e4f93…63a36b is owned by 0x000000000000000000000000000000000000dEaD, not 0xFD35C169EB401be44C344d48674cFB05fCC1647b",
-      "tx": "0x7d0fafabcfc199c4ca1543037f7fa11ede5300958404c955ca30920dc01113f2"
+      "error": "Transaction 0x302aceddb545683e3d5f865bc08d87890ede864731380447d5e32f1fe44f015b reverted. Reason: entity 0xb28d400c…ec3220 is owned by 0x000000000000000000000000000000000000dEaD, not 0xFD35C169EB401be44C344d48674cFB05fCC1647b",
+      "tx": "0x302aceddb545683e3d5f865bc08d87890ede864731380447d5e32f1fe44f015b"
     },
     {
       "name": "refused: researcher tries to delete the sealed case file",
-      "at": "2026-10-15T16:43:09.646Z",
+      "at": "2026-10-16T07:01:14.586Z",
       "reverted": true,
-      "error": "Transaction 0x0cec8bd0379480396cd23d2c61aebb4a975c8c9c142a2b89fdd3d4bc25f2b049 reverted. Reason: entity 0x4d2e4f93…63a36b is owned by 0x000000000000000000000000000000000000dEaD, not 0xFD35C169EB401be44C344d48674cFB05fCC1647b",
-      "tx": "0x0cec8bd0379480396cd23d2c61aebb4a975c8c9c142a2b89fdd3d4bc25f2b049"
+      "error": "Transaction 0x9a2ad09cb77f1632c4cbbc449da7c3d966f1e0073e5e96ca1d5c56bcd44142c7 reverted. Reason: entity 0xb28d400c…ec3220 is owned by 0x000000000000000000000000000000000000dEaD, not 0xFD35C169EB401be44C344d48674cFB05fCC1647b",
+      "tx": "0x9a2ad09cb77f1632c4cbbc449da7c3d966f1e0073e5e96ca1d5c56bcd44142c7"
     },
     {
       "name": "researcher granted the extension in one batch",
-      "at": "2026-10-15T16:43:14.622Z",
-      "tx": "0xa2e9c9ca8ea06575be3ef36a9e5425808e1dbb1a3ca668209eff05181ef2f96b",
+      "at": "2026-10-16T07:01:19.359Z",
+      "tx": "0xfaa09bc759b2c7d9970407d02ac642c9591308bd6c8276f063eb0390aca47c91",
       "seconds": 60
     },
     {
       "name": "impostor wrote a fake ack, fake fix, fake receipt, fake reveal, a decoy clock and a copied trigger",
-      "at": "2026-10-15T16:43:24.182Z",
-      "tx": "0x6cf5391a99942146f95cea2d6f6e72d625179bf9aa09c7f64c7fe12563012551",
-      "decoyClockTx": "0x56319a47d3cc713cd64e449d8a77dbe1f518a6760c9851b4f0a1782f0b86336d",
+      "at": "2026-10-16T07:01:28.693Z",
+      "tx": "0xc5b68c367565d2531a1f3609ee7e41e6f98423f53cd61716a74baaba0a7fbe24",
+      "decoyClockTx": "0xa1ee1a6cd3dc159462275e99e6d75c98d6c1ced39d5f3d07dc6594baec5bd3c6",
       "entities": [
-        "0xb5725a3a3a761ca68658cef2d8727cbe4a126b910132b44f4abf4c29ed475416",
-        "0x72d30c01a9d333c69ccbe9041ac111775ff1d46825d5ff7b1d3c7b4b83d95464",
-        "0x312bdb801a68506eba39436687d938f44e5e863ff86ee8132954fa534bb149d5",
-        "0x5c6bcf0a79672a481ce19d15514e28bb22c4f9a633fcd9e0a24e53fb98c323f9",
-        "0xbd46c607fa5f0b7088c7982852539f406496829c36c0222ed8627d4bf7f3881c"
+        "0x6fe2c4785661f98bd842c778d152f95732e2e84756500945909e21887ab7d208",
+        "0xdc9ce2d56414099f6f446ae5088b40669eecc18ad2646e7df579b8246be77354",
+        "0x87f7ee5dc61313f77fe9930080bacdce4b0b113f3b7dce7fb0286af0822f1a48",
+        "0x802ae1480f59a2c338b027b32e9e382c04bea779d1c85015c204cc7ce427829c",
+        "0x29ec555651b979d9022f1fa70cdd3e3cedc885dd488dd920a42d17b1a0124609"
       ],
       "by": "0x455adcCF9547b41e6Fc05CE0e985accc857B37Fc"
     },
     {
       "name": "case as derived from Arkiv after the forgeries",
-      "at": "2026-10-15T16:43:24.375Z",
+      "at": "2026-10-16T07:01:28.907Z",
       "status": "acknowledged",
-      "ackedAt": "616398",
+      "ackedAt": "642142",
       "extensionsGranted": 1,
       "ignored": [
-        "receipt: not one of this case's watchers",
+        "ack: not written by this case's responder",
         "reveal: its key does not open this case",
-        "fixed: not written by this case's responder",
-        "ack: not written by this case's responder"
+        "receipt: not one of this case's watchers",
+        "fixed: not written by this case's responder"
       ],
       "clockLive": true,
       "clockOwner": "0xFD35C169EB401be44C344d48674cFB05fCC1647b",
-      "deadline": "616483"
+      "deadline": "642226"
     },
     {
       "name": "vendor marked it fixed",
-      "at": "2026-10-15T16:43:29.182Z",
-      "entity": "0x72aa840063f459a5c529c469c5951e46e22f7e6842b1919951c88aafc3502ef6",
-      "tx": "0xf2e98e2ad15da5adbe7334af0ac35ef678b71e887316f1f34d38ecc3fbd74f7f"
+      "at": "2026-10-16T07:01:33.537Z",
+      "entity": "0x738f4a3541f1bff8559eaea7675509dbef9c2d58b012c54a3b7956ee8646dbca",
+      "tx": "0xc33cf1b9a88f648c8991b34919db21b4c6004a5ecb9ca0ed2fcf40fd8e32317f"
     },
     {
       "name": "final state",
-      "at": "2026-10-15T16:45:47.127Z",
+      "at": "2026-10-16T07:03:57.320Z",
       "status": "revealed",
       "attribution": "verified",
       "vendor": "Halcyon Bridge (test vendor)",
       "receipts": [
         {
-          "key": "0x814db74c7d10af12e46539b5bed3271dd158ec7fa107a4f160df2b6907cd4861",
+          "key": "0xa4aa27ad2a7cc97145a963652a2df51c3087953504b3e727159325911040c1b6",
           "by": "0xb0Bae504e74A62EE4FBD8F848e8dB9c08A22167B",
-          "block": "616487",
+          "block": "642230",
           "outcome": "lapsed"
         },
         {
-          "key": "0xfed63e0de15c82da314fff03db9f0621eba01f45ab104ceb6d143648686d09e9",
+          "key": "0xde6273d494bd7f44b1a2910ac8ab868d681edace66173049bef41887ceca626a",
           "by": "0xBDEd5092977488a26A6Eb2C671945A47040298D1",
-          "block": "616486",
+          "block": "642229",
           "outcome": "lapsed"
         },
         {
-          "key": "0xf105b7e9a4973e87b654817e628d75c77404e014d374c1c1642ae6d9ae749e9e",
+          "key": "0x257d3b152ce1d82ebd3e7b6d1511a0f56bd462cac71794e63f046d66d1bcb969",
           "by": "0x5839F13CB0548956ef69c3AbC333F9D16ba5C8eA",
-          "block": "616486",
+          "block": "642229",
           "outcome": "lapsed"
         },
         {
-          "key": "0x312bdb801a68506eba39436687d938f44e5e863ff86ee8132954fa534bb149d5",
+          "key": "0x87f7ee5dc61313f77fe9930080bacdce4b0b113f3b7dce7fb0286af0822f1a48",
           "by": "0x455adcCF9547b41e6Fc05CE0e985accc857B37Fc",
-          "block": "616418",
+          "block": "642160",
           "outcome": "lapsed"
         }
       ],
-      "revealEntity": "0x3be52a3affbfc2f37018661f2ce18e88c5f1cb5c99c7be9c9d191523728d0a3d",
+      "revealEntity": "0x3599fa8c9248c24f86b1ca6aa156aab374c1bf5b3f03ca561a3e2408360fab7e",
       "revealOk": true,
       "checks": {
         "decrypts": true,
@@ -170,32 +170,32 @@
     },
     {
       "name": "watcher rejections",
-      "at": "2026-10-15T16:45:47.127Z",
+      "at": "2026-10-16T07:03:57.320Z",
       "rejections": []
     }
   ],
-  "finishedAt": "2026-10-15T16:45:47.127Z",
+  "finishedAt": "2026-10-16T07:03:57.320Z",
   "links": {
-    "case": "https://tiramisu.explorer.arkiv.network/entity/0x4d2e4f930bde2c3249f185a3d65996939d5745569844ed69726281498763a36b",
-    "clock": "https://tiramisu.explorer.arkiv.network/entity/0x4eb41a41e5d2c265745edd0675ad3a8aec8c3d3acef159e6aba06d9c53a59fc8",
-    "filing": "https://tiramisu.explorer.arkiv.network/tx/0x9ac5fa9f230989ddeae40998b62c8657a14919bbdf91f353e3b30234239477d0",
-    "grant": "https://tiramisu.explorer.arkiv.network/tx/0xa2e9c9ca8ea06575be3ef36a9e5425808e1dbb1a3ca668209eff05181ef2f96b",
+    "case": "https://tiramisu.explorer.arkiv.network/entity/0xb28d400c4e117c31f1278ef22c2dd6610bba6ea88821b87318c2155ed6ec3220",
+    "clock": "https://tiramisu.explorer.arkiv.network/entity/0x00a3f874a3e3ada419218a27f4fb5803e58502b56ec6b3f3e5117244d7b90acb",
+    "filing": "https://tiramisu.explorer.arkiv.network/tx/0xb318e4cc851dc0f3e105783f3316d6ca716fc04ac72dfb777690e5b59fc0ca82",
+    "grant": "https://tiramisu.explorer.arkiv.network/tx/0xfaa09bc759b2c7d9970407d02ac642c9591308bd6c8276f063eb0390aca47c91",
     "refusals": [
       {
         "label": "vendor tries to extend the clock itself",
-        "tx": "https://tiramisu.explorer.arkiv.network/tx/0x27feac0cb9263ee913f2df77117e4fc80851b42f4a1a79376781e29825fb3b12"
+        "tx": "https://tiramisu.explorer.arkiv.network/tx/0xe57f4e1293a609e0cfb6b7865615bcef1afc031d8c82b3242b75529afca67fec"
       },
       {
         "label": "vendor tries to delete the clock",
-        "tx": "https://tiramisu.explorer.arkiv.network/tx/0x75e982efc0eb35f54aa25a278fd16013b43f8f564e3cf41bc0c94e68190cee06"
+        "tx": "https://tiramisu.explorer.arkiv.network/tx/0xa39750702cf94e691466ee30050f8f234fd6d561419cf17f999d2422d193729a"
       },
       {
         "label": "researcher tries to edit the sealed case file",
-        "tx": "https://tiramisu.explorer.arkiv.network/tx/0x7d0fafabcfc199c4ca1543037f7fa11ede5300958404c955ca30920dc01113f2"
+        "tx": "https://tiramisu.explorer.arkiv.network/tx/0x302aceddb545683e3d5f865bc08d87890ede864731380447d5e32f1fe44f015b"
       },
       {
         "label": "researcher tries to delete the sealed case file",
-        "tx": "https://tiramisu.explorer.arkiv.network/tx/0x0cec8bd0379480396cd23d2c61aebb4a975c8c9c142a2b89fdd3d4bc25f2b049"
+        "tx": "https://tiramisu.explorer.arkiv.network/tx/0x9a2ad09cb77f1632c4cbbc449da7c3d966f1e0073e5e96ca1d5c56bcd44142c7"
       }
     ]
   },
