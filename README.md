@@ -8,6 +8,7 @@ Built on [Arkiv](https://arkiv.network), the Web3 database, on the Tiramisu test
 
 - **Live app:** https://on-the-clock-arkiv.vercel.app
 - **Watch one run (≈5 min, no wallet, no faucet):** https://on-the-clock-arkiv.vercel.app/demo
+- **Demo video (2:49):** https://youtu.be/hkbkfjUSq98
 - **Data contract:** [`arkiv/schema.md`](arkiv/schema.md)
 - **Friction report:** [`arkiv/friction.md`](arkiv/friction.md)
 - **Every claim, with explorer links:** [`PROOF.md`](PROOF.md)
